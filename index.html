@@ -4,6 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Beach Bag Blitz — onecode summer game</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="preload" href="assets/music/music_0.mp3" as="audio">
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Poppins:wght@400;500;600&display=swap');
 
@@ -321,6 +324,19 @@
     position:absolute; inset:0; background:var(--pink); opacity:0; pointer-events:none; z-index:40;
     transition:opacity .1s;
   }
+
+  .confetti-particle{
+    position:absolute;
+    width:7px; height:7px;
+    border-radius:2px;
+    pointer-events:none;
+    z-index:35;
+    animation:confetti-fly .6s ease-out forwards;
+  }
+  @keyframes confetti-fly{
+    0%{ transform:translate(0,0) rotate(0deg) scale(1); opacity:1; }
+    100%{ transform:translate(var(--dx),var(--dy)) rotate(var(--rot)) scale(0.4); opacity:0; }
+  }
 </style>
 </head>
 <body>
@@ -604,6 +620,76 @@
     setTimeout(()=> missFlash.style.opacity = '0', 120);
   }
 
+  // --- sound effects (synthesized via Web Audio API — zero extra file weight) ---
+  let sfxCtx = null;
+  function getAudioCtx(){
+    if(!sfxCtx){
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if(AC){ try{ sfxCtx = new AC(); }catch(e){} }
+    }
+    return sfxCtx;
+  }
+
+  function playTone(freq, duration, type, startTime, gainPeak){
+    const ctx = getAudioCtx();
+    if(!ctx) return;
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = type;
+    osc.frequency.value = freq;
+    const t0 = ctx.currentTime + (startTime || 0);
+    gain.gain.setValueAtTime(0, t0);
+    gain.gain.linearRampToValueAtTime(gainPeak, t0 + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t0 + duration);
+    osc.connect(gain).connect(ctx.destination);
+    osc.start(t0);
+    osc.stop(t0 + duration + 0.02);
+  }
+
+  function playDing(mult){
+    if(bgMusic.muted) return;
+    const base = 880 + (mult - 1) * 110;
+    playTone(base, 0.12, 'sine', 0, 0.18);
+    playTone(base * 1.5, 0.16, 'sine', 0.07, 0.14);
+  }
+
+  function playBuzz(){
+    if(bgMusic.muted) return;
+    playTone(160, 0.18, 'sawtooth', 0, 0.12);
+    playTone(110, 0.22, 'square', 0.02, 0.08);
+  }
+
+  // --- haptics ---
+  function vibrate(ms){
+    if(navigator.vibrate) navigator.vibrate(ms);
+  }
+
+  // --- confetti burst ---
+  const CONFETTI_COLORS = ['#ec1f6e', '#ff5fa0', '#7c3aed', '#a78bfa', '#ffe9c7'];
+  function burstConfetti(x, y, count){
+    for(let i=0; i<count; i++){
+      const p = document.createElement('div');
+      p.className = 'confetti-particle';
+      const angle = Math.random() * Math.PI * 2;
+      const dist = 40 + Math.random() * 60;
+      const dx = Math.cos(angle) * dist;
+      const dy = Math.sin(angle) * dist - 20;
+      p.style.left = x + 'px';
+      p.style.top = y + 'px';
+      p.style.background = CONFETTI_COLORS[Math.floor(Math.random() * CONFETTI_COLORS.length)];
+      p.style.setProperty('--dx', dx + 'px');
+      p.style.setProperty('--dy', dy + 'px');
+      p.style.setProperty('--rot', (Math.random() * 360 - 180) + 'deg');
+      game.appendChild(p);
+      setTimeout(()=> p.remove(), 650);
+    }
+  }
+
+  function celebrateCatch(obj, mult){
+    const count = mult >= 4 ? 20 : mult >= 3 ? 14 : mult >= 2 ? 9 : 5;
+    burstConfetti(obj.x + 28, obj.y + 28, count);
+  }
+
   function startGame(){
     measure();
     resetGame();
@@ -746,6 +832,9 @@
       score += 10 * mult;
       scoreEl.textContent = score;
       updateCombo();
+      playDing(mult);
+      vibrate(10);
+      celebrateCatch(obj, mult);
       popItem(obj, true);
     } else {
       combo = 0;
@@ -753,6 +842,8 @@
       updateLives();
       updateCombo();
       flashMiss();
+      playBuzz();
+      vibrate(10);
       popItem(obj, false);
       if(lives <= 0) endGame(TEXT[lang].outOfSun);
     }
@@ -784,6 +875,8 @@
           updateLives();
           updateCombo();
           flashMiss();
+          playBuzz();
+          vibrate(10);
           popItem(obj, false);
           if(lives <= 0) endGame(TEXT[lang].outOfSun);
         }
@@ -862,6 +955,8 @@
   // Start it on the first tap/click anywhere, then never re-attach.
   function firstGestureHandler(){
     tryPlayMusic();
+    const ctx = getAudioCtx();
+    if(ctx && ctx.state === 'suspended') ctx.resume().catch(()=>{});
     document.removeEventListener('click', firstGestureHandler);
     document.removeEventListener('touchstart', firstGestureHandler);
   }
