@@ -190,6 +190,12 @@
     display:flex; flex-direction:column; align-items:center; justify-content:center;
     text-align:center; padding:32px;
     background:radial-gradient(ellipse at 50% 30%, rgba(124,58,237,0.25), var(--bg) 75%);
+    /* The game frame (#game) always stays fixed/non-scrolling — but overlay content
+       (start screen especially) can now grow taller than the viewport, so the overlay
+       itself needs its own internal scroll, independent of the fixed game frame. */
+    overflow-y:auto;
+    overscroll-behavior:contain;
+    touch-action:pan-y;
   }
   .overlay h1{
     font-family:'Fredoka',sans-serif;
