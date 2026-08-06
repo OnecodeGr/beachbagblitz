@@ -1,0 +1,880 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Beach Bag Blitz — onecode summer game</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Poppins:wght@400;500;600&display=swap');
+
+  :root{
+    --bg:#0d0716;
+    --bg2:#170a26;
+    --pink:#ec1f6e;
+    --pink-soft:#ff5fa0;
+    --purple:#7c3aed;
+    --purple-soft:#a78bfa;
+    --sand:#ffe9c7;
+    --white:#f7f2ff;
+  }
+
+  *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; user-select:none; }
+
+  html,body{
+    margin:0; padding:0; height:100%; overflow:hidden;
+    background:radial-gradient(ellipse at 50% 0%, var(--bg2), var(--bg) 70%);
+    font-family:'Poppins',sans-serif;
+    color:var(--white);
+    touch-action:none;
+  }
+
+  #game{
+    position:relative;
+    width:100%; height:100dvh;
+    max-width:520px; margin:0 auto;
+    overflow:hidden;
+    border-left:1px solid rgba(255,255,255,0.06);
+    border-right:1px solid rgba(255,255,255,0.06);
+  }
+
+  /* decorative palm strips */
+  .palm{
+    position:absolute; top:0; width:70px; height:100%;
+    background:linear-gradient(180deg, rgba(124,58,237,0.18), transparent 60%);
+    pointer-events:none; z-index:0;
+  }
+  .palm.left{ left:-20px; transform:scaleX(-1); }
+  .palm.right{ right:-20px; }
+
+  /* HUD */
+  #hud{
+    position:absolute; top:0; left:0; right:0;
+    display:flex; justify-content:space-between; align-items:center;
+    padding:14px 16px 8px;
+    z-index:20;
+    font-family:'Fredoka',sans-serif;
+  }
+  .hud-pill{
+    background:rgba(255,255,255,0.06);
+    border:1px solid rgba(255,255,255,0.12);
+    border-radius:999px;
+    padding:6px 14px;
+    font-size:15px;
+    font-weight:600;
+    display:flex; align-items:center; gap:6px;
+    backdrop-filter:blur(6px);
+  }
+  #lives{ letter-spacing:2px; font-size:16px; }
+  #combo-wrap{
+    position:absolute; top:56px; left:50%; transform:translateX(-50%);
+    display:flex; flex-direction:column; align-items:center; z-index:20;
+    pointer-events:none;
+  }
+  #umbrella{
+    font-size:30px;
+    transform-origin:50% 90%;
+    filter:drop-shadow(0 0 10px rgba(236,31,110,0.6));
+    transition:transform .15s ease;
+  }
+  #combo-label{
+    font-family:'Fredoka',sans-serif;
+    font-size:12px; font-weight:600;
+    color:var(--pink-soft);
+    margin-top:2px;
+    opacity:0;
+    transition:opacity .2s;
+  }
+
+  /* falling items */
+  .item{
+    position:absolute;
+    width:56px; height:56px;
+    border-radius:16px;
+    background:rgba(255,255,255,0.07);
+    border:2px solid rgba(255,255,255,0.18);
+    display:flex; align-items:center; justify-content:center;
+    font-size:28px;
+    z-index:15;
+    cursor:grab;
+    box-shadow:0 6px 18px rgba(0,0,0,0.35);
+    touch-action:none;
+  }
+  .item.dragging{
+    cursor:grabbing;
+    box-shadow:0 10px 26px rgba(236,31,110,0.4);
+    border-color:var(--pink-soft);
+    z-index:30;
+  }
+
+  /* bags */
+  #bags{
+    position:absolute; bottom:0; left:0; right:0;
+    display:flex;
+    z-index:10;
+    height:132px;
+  }
+  .bag{
+    flex:1;
+    display:flex; flex-direction:column; align-items:center; justify-content:flex-end;
+    padding-bottom:16px;
+    position:relative;
+    transition:background .15s ease;
+    border-top:2px dashed rgba(255,255,255,0.12);
+  }
+  .bag::before{
+    content:'';
+    position:absolute; inset:0;
+    background:linear-gradient(180deg, transparent, rgba(124,58,237,0.16));
+  }
+  .bag.hover{ background:rgba(236,31,110,0.18); }
+  .bag-icon{
+    font-size:34px;
+    margin-bottom:4px;
+    filter:drop-shadow(0 4px 8px rgba(0,0,0,0.4));
+    position:relative; z-index:1;
+  }
+  .bag-label{
+    font-family:'Fredoka',sans-serif;
+    font-size:12px; font-weight:600;
+    color:var(--sand);
+    letter-spacing:0.5px;
+    position:relative; z-index:1;
+  }
+
+  /* waves background */
+  #waves{
+    position:absolute; bottom:132px; left:0; right:0; height:40px;
+    background:repeating-linear-gradient(115deg, rgba(124,58,237,0.25) 0 18px, transparent 18px 36px);
+    opacity:0.5; z-index:1; pointer-events:none;
+  }
+  #flamingo{
+    position:absolute; bottom:150px; font-size:26px; z-index:2; pointer-events:none;
+    animation:bob 2.6s ease-in-out infinite;
+  }
+  @keyframes bob{ 0%,100%{ transform:translateY(0) rotate(-4deg);} 50%{ transform:translateY(-8px) rotate(4deg);} }
+
+  /* overlays */
+  .overlay{
+    position:absolute; inset:0; z-index:50;
+    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    text-align:center; padding:32px;
+    background:radial-gradient(ellipse at 50% 30%, rgba(124,58,237,0.25), var(--bg) 75%);
+  }
+  .overlay h1{
+    font-family:'Fredoka',sans-serif;
+    font-size:38px; margin:0 0 6px;
+    background:linear-gradient(90deg, var(--pink-soft), var(--purple-soft));
+    -webkit-background-clip:text; background-clip:text; color:transparent;
+  }
+  .overlay .brand{
+    font-family:'Fredoka',sans-serif;
+    font-size:14px; letter-spacing:2px; text-transform:uppercase;
+    color:rgba(255,255,255,0.5); margin-bottom:18px;
+  }
+  .overlay .brand b{ color:var(--pink-soft); }
+  .overlay p{
+    font-size:14.5px; line-height:1.6; color:rgba(255,255,255,0.75);
+    max-width:340px; margin:0 0 22px;
+  }
+  .legend{
+    display:flex; gap:18px; margin-bottom:24px; flex-wrap:wrap; justify-content:center;
+  }
+  .legend div{
+    display:flex; flex-direction:column; align-items:center; gap:4px;
+    font-size:11px; color:rgba(255,255,255,0.6);
+  }
+  .legend span{ font-size:24px; }
+
+  #lang-toggle{
+    position:absolute; top:16px; right:16px;
+    display:flex; background:rgba(255,255,255,0.06);
+    border:1px solid rgba(255,255,255,0.15);
+    border-radius:999px; overflow:hidden; z-index:60;
+    font-family:'Fredoka',sans-serif; font-size:12px; font-weight:600;
+  }
+  #lang-toggle button{
+    border:none; background:transparent; color:rgba(255,255,255,0.55);
+    padding:7px 12px; cursor:pointer; font-family:inherit; font-size:inherit; font-weight:inherit;
+  }
+  #lang-toggle button.active{
+    background:linear-gradient(90deg, var(--pink), var(--purple));
+    color:white;
+  }
+
+  .diff-label{
+    font-family:'Fredoka',sans-serif; font-size:12px; font-weight:600;
+    color:rgba(255,255,255,0.55); letter-spacing:1px; text-transform:uppercase;
+    margin-bottom:8px;
+  }
+  .diff-row{ display:flex; gap:8px; margin-bottom:22px; }
+  .diff-btn{
+    font-family:'Fredoka',sans-serif; font-size:14px; font-weight:600;
+    padding:9px 16px; border-radius:999px; cursor:pointer;
+    background:rgba(255,255,255,0.06); color:rgba(255,255,255,0.75);
+    border:2px solid rgba(255,255,255,0.15);
+    transition:all .15s ease;
+  }
+  .diff-btn.active{
+    background:linear-gradient(90deg, var(--pink), var(--purple));
+    border-color:transparent; color:white;
+    box-shadow:0 6px 16px rgba(236,31,110,0.35);
+  }
+  .gender-btn{
+    font-size:26px;
+    line-height:1;
+    padding:10px 22px;
+  }
+
+  /* onecode logo badge */
+  .onecode-badge{
+    display:inline-flex; align-items:center;
+    background:#0d0716;
+    border:1px solid rgba(255,255,255,0.08);
+    border-radius:8px;
+    padding:6px 11px;
+    font-family:'Poppins',sans-serif;
+    font-weight:700;
+    font-size:13px;
+    letter-spacing:0.5px;
+    box-shadow:0 4px 14px rgba(0,0,0,0.35);
+  }
+  .onecode-badge .lg-one, .onecode-badge .lg-code{ color:var(--white); }
+  .onecode-badge .lg-n{ color:var(--pink); }
+  .brand-row{
+    display:flex; flex-direction:column; align-items:center; gap:6px;
+    margin-bottom:16px;
+  }
+  .brand-row .tagline{
+    font-family:'Fredoka',sans-serif; font-size:12px; letter-spacing:1.5px;
+    text-transform:uppercase; color:rgba(255,255,255,0.45);
+  }
+  #corner-badge{
+    position:absolute; left:12px; bottom:144px;
+    z-index:12; transform:scale(0.82); transform-origin:left bottom;
+    opacity:0.9;
+  }
+
+  #music-toggle{
+    position:absolute; right:12px; bottom:144px;
+    z-index:70;
+    width:34px; height:34px; border-radius:50%;
+    background:rgba(255,255,255,0.08);
+    border:1px solid rgba(255,255,255,0.2);
+    display:flex; align-items:center; justify-content:center;
+    font-size:15px; cursor:pointer;
+    backdrop-filter:blur(6px);
+    transition:background .15s ease, transform .12s ease;
+  }
+  #music-toggle:active{ transform:scale(0.9); }
+
+  button.primary{
+    font-family:'Fredoka',sans-serif;
+    font-size:18px; font-weight:600;
+    padding:14px 38px;
+    border:none; border-radius:999px;
+    background:linear-gradient(90deg, var(--pink), var(--purple));
+    color:white;
+    box-shadow:0 8px 24px rgba(236,31,110,0.35);
+    cursor:pointer;
+    transition:transform .12s ease;
+  }
+  button.primary:active{ transform:scale(0.96); }
+
+  .end-actions{
+    display:flex; flex-direction:column; align-items:center; gap:10px;
+  }
+  button.secondary{
+    font-family:'Fredoka',sans-serif;
+    font-size:14.5px; font-weight:600;
+    padding:10px 26px;
+    border-radius:999px;
+    background:rgba(255,255,255,0.07);
+    border:1.5px solid rgba(255,255,255,0.2);
+    color:var(--white);
+    cursor:pointer;
+    display:flex; align-items:center; gap:6px;
+    transition:transform .12s ease, background .15s ease;
+  }
+  button.secondary:active{ transform:scale(0.96); background:rgba(255,255,255,0.12); }
+
+  #share-toast{
+    font-family:'Fredoka',sans-serif;
+    font-size:12.5px; font-weight:600;
+    color:var(--pink-soft);
+    margin-top:10px;
+    opacity:0;
+    transition:opacity .25s ease;
+  }
+  #share-toast.show{ opacity:1; }
+
+  #final-score{
+    font-family:'Fredoka',sans-serif;
+    font-size:56px; font-weight:700;
+    color:var(--sand);
+    margin:6px 0 2px;
+  }
+  #final-tag{ font-size:14px; color:var(--pink-soft); margin-bottom:20px; font-weight:600; }
+
+  .hidden{ display:none !important; }
+
+  #miss-flash{
+    position:absolute; inset:0; background:var(--pink); opacity:0; pointer-events:none; z-index:40;
+    transition:opacity .1s;
+  }
+</style>
+</head>
+<body>
+<div id="game">
+  <div class="palm left">🌴</div>
+  <div class="palm right">🌴</div>
+  <div id="miss-flash"></div>
+
+  <div id="hud" class="hidden">
+    <div class="hud-pill">⏱ <span id="timer">60</span>s</div>
+    <div class="hud-pill">🌟 <span id="score">0</span></div>
+    <div class="hud-pill" id="lives">☀️☀️☀️</div>
+  </div>
+
+  <div id="combo-wrap" class="hidden">
+    <div id="umbrella">⛱️</div>
+    <div id="combo-label">COMBO x1</div>
+  </div>
+
+  <div id="waves" class="hidden"></div>
+  <div id="flamingo" class="hidden" style="left:20px;">🦩</div>
+
+  <div id="bags" class="hidden">
+    <div class="bag" data-cat="tech">
+      <div class="bag-icon">💻</div>
+      <div class="bag-label" id="lbl-tech">TECH</div>
+    </div>
+    <div class="bag" data-cat="beach">
+      <div class="bag-icon">🏖️</div>
+      <div class="bag-label" id="lbl-beach">BEACH</div>
+    </div>
+    <div class="bag" data-cat="style">
+      <div class="bag-icon">👜</div>
+      <div class="bag-label" id="lbl-style">STYLE</div>
+    </div>
+  </div>
+
+  <div id="corner-badge" class="onecode-badge hidden">
+    <span class="lg-one">O</span><span class="lg-n">N</span><span class="lg-code">ECODE</span>
+  </div>
+
+  <button id="music-toggle" aria-label="Toggle music">🔊</button>
+  <audio id="bg-music" loop preload="auto">
+    <source src="assets/music/music_0.mp3" type="audio/mpeg">
+  </audio>
+
+  <!-- Start screen -->
+  <div id="start-screen" class="overlay">
+    <div id="lang-toggle">
+      <button id="lang-gr" class="active" data-lang="gr">ΕΛ</button>
+      <button id="lang-en" data-lang="en">EN</button>
+    </div>
+    <div class="brand-row">
+      <div class="onecode-badge">
+        <span class="lg-one">O</span><span class="lg-n">N</span><span class="lg-code">ECODE</span>
+      </div>
+      <div class="tagline" id="presents-tag">presents</div>
+    </div>
+    <h1>Beach Bag Blitz</h1>
+    <p id="instructions">Σύρε κάθε αντικείμενο που πέφτει στη σωστή τσάντα πριν φτάσει στην άμμο. Συνέχισε σερί για πολλαπλασιαστές combo. 60 δευτερόλεπτα. Πάμε!</p>
+    <div class="legend">
+      <div><span>💻🎧📱</span><span id="legend-tech">Τεχνολογικά</span></div>
+      <div><span>⛱️🦩⭐🐚</span><span id="legend-beach">Παραλία</span></div>
+      <div><span>🕶️🩴💄</span><span id="legend-style">Στυλ</span></div>
+    </div>
+    <div class="diff-label" id="gender-label">Ποιος παίζει;</div>
+    <div class="diff-row">
+      <button class="diff-btn gender-btn active" id="gender-female" data-gender="female">👙</button>
+      <button class="diff-btn gender-btn" id="gender-male" data-gender="male">🩳</button>
+    </div>
+    <div class="diff-label" id="diff-label">Διάλεξε ρυθμό</div>
+    <div class="diff-row">
+      <button class="diff-btn" id="diff-easy" data-diff="easy">Εύκολο</button>
+      <button class="diff-btn active" id="diff-normal" data-diff="normal">Κανονικό</button>
+      <button class="diff-btn" id="diff-hard" data-diff="hard">Δύσκολο</button>
+    </div>
+    <button class="primary" id="start-btn">Παίξε τώρα</button>
+  </div>
+
+  <!-- Game over screen -->
+  <div id="end-screen" class="overlay hidden">
+    <div class="brand-row">
+      <div class="onecode-badge">
+        <span class="lg-one">O</span><span class="lg-n">N</span><span class="lg-code">ECODE</span>
+      </div>
+      <div class="tagline">Καλές διακοπές</div>
+    </div>
+    <div id="final-tag">Time's up!</div>
+    <div id="final-score">0</div>
+    <p id="end-message">You packed the beach bags like a pro.</p>
+    <div class="end-actions">
+      <button class="primary" id="retry-btn">Παίξε ξανά</button>
+      <button class="secondary" id="share-btn">📤 <span id="share-label">Μοιράσου το</span></button>
+    </div>
+    <div id="share-toast">Αντιγράφηκε!</div>
+  </div>
+</div>
+
+<script>
+(function(){
+  const game = document.getElementById('game');
+  const startScreen = document.getElementById('start-screen');
+  const endScreen = document.getElementById('end-screen');
+  const startBtn = document.getElementById('start-btn');
+  const retryBtn = document.getElementById('retry-btn');
+  const hud = document.getElementById('hud');
+  const bagsEl = document.getElementById('bags');
+  const wavesEl = document.getElementById('waves');
+  const flamingoEl = document.getElementById('flamingo');
+  const comboWrap = document.getElementById('combo-wrap');
+  const umbrellaEl = document.getElementById('umbrella');
+  const comboLabel = document.getElementById('combo-label');
+  const timerEl = document.getElementById('timer');
+  const scoreEl = document.getElementById('score');
+  const livesEl = document.getElementById('lives');
+  const missFlash = document.getElementById('miss-flash');
+  const finalScoreEl = document.getElementById('final-score');
+  const finalTagEl = document.getElementById('final-tag');
+  const endMessage = document.getElementById('end-message');
+  const shareBtn = document.getElementById('share-btn');
+  const shareLabel = document.getElementById('share-label');
+  const shareToast = document.getElementById('share-toast');
+  const bags = Array.from(document.querySelectorAll('.bag'));
+  const instructionsEl = document.getElementById('instructions');
+  const diffLabelEl = document.getElementById('diff-label');
+  const genderLabelEl = document.getElementById('gender-label');
+  const genderButtons = Array.from(document.querySelectorAll('[data-gender]'));
+  const legendTech = document.getElementById('legend-tech');
+  const legendBeach = document.getElementById('legend-beach');
+  const legendStyle = document.getElementById('legend-style');
+  const presentsTag = document.getElementById('presents-tag');
+  const cornerBadge = document.getElementById('corner-badge');
+  const lblTech = document.getElementById('lbl-tech');
+  const lblBeach = document.getElementById('lbl-beach');
+  const lblStyle = document.getElementById('lbl-style');
+  const langButtons = Array.from(document.querySelectorAll('#lang-toggle button'));
+  const diffButtons = Array.from(document.querySelectorAll('[data-diff]'));
+
+  const TEXT = {
+    gr: {
+      instructions: 'Σύρε κάθε αντικείμενο που πέφτει στη σωστή τσάντα πριν φτάσει στην άμμο. Συνέχισε σερί για πολλαπλασιαστές combo. 60 δευτερόλεπτα. Πάμε!',
+      legendTech: 'Τεχνολογικά', legendBeach: 'Παραλία', legendStyle: 'Στυλ',
+      lblTech: 'TECH', lblBeach: 'BEACH', lblStyle: 'STYLE',
+      diffLabel: 'Διάλεξε ρυθμό',
+      easy: 'Εύκολο', normal: 'Κανονικό', hard: 'Δύσκολο',
+      genderLabel: 'Ποιος παίζει;', female: 'Θηλυκό', male: 'Αρσενικό',
+      startBtn: 'Παίξε τώρα', retryBtn: 'Παίξε ξανά',
+      presents: 'παρουσιάζει',
+      timeUp: 'Ο χρόνος τελείωσε!', outOfSun: 'Τελείωσε ο ήλιος!',
+      msgHighF: 'Πιστοποιημένη πρωταθλήτρια καλοκαιρινής ταξινόμησης. 🏆',
+      msgHighM: 'Πιστοποιημένος πρωταθλητής καλοκαιρινής ταξινόμησης. 🏆',
+      msgMid: 'Ωραία σερί — οι παραλιακές τσάντες είναι περήφανες.',
+      msgLow: 'Καλή προθέρμανση. Το φλαμίνγκο πιστεύει σε σένα.',
+      shareLabel: 'Μοιράσου το', shareText: score => `Μάζεψα ${score} πόντους στο Beach Bag Blitz της onecode! 🏖️ Παίξε κι εσύ:`,
+      copied: 'Αντιγράφηκε στο πρόχειρο!'
+    },
+    en: {
+      instructions: 'Drag every falling item into the right bag before it lands in the sand. Chain catches for combo multipliers. 60 seconds. Go!',
+      legendTech: 'Tech', legendBeach: 'Beach', legendStyle: 'Style',
+      lblTech: 'TECH', lblBeach: 'BEACH', lblStyle: 'STYLE',
+      diffLabel: 'Choose your pace',
+      easy: 'Easy', normal: 'Normal', hard: 'Hard',
+      genderLabel: 'Who\'s playing?', female: 'Female', male: 'Male',
+      startBtn: 'Start playing', retryBtn: 'Play again',
+      presents: 'presents',
+      timeUp: "Time's up!", outOfSun: 'Out of sunshine!',
+      msgHighF: 'Certified summer sorting champion. 🏆',
+      msgHighM: 'Certified summer sorting champion. 🏆',
+      msgMid: 'Nice streaks — the beach bags are proud.',
+      msgLow: 'A solid warm-up. The flamingo believes in you.',
+      shareLabel: 'Share it', shareText: score => `I scored ${score} points in onecode's Beach Bag Blitz! 🏖️ Try to beat it:`,
+      copied: 'Copied to clipboard!'
+    }
+  };
+
+  let lang = 'gr';
+
+  function applyLang(){
+    const t = TEXT[lang];
+    instructionsEl.textContent = t.instructions;
+    legendTech.textContent = t.legendTech;
+    legendBeach.textContent = t.legendBeach;
+    legendStyle.textContent = t.legendStyle;
+    presentsTag.textContent = t.presents;
+    lblTech.textContent = t.lblTech;
+    lblBeach.textContent = t.lblBeach;
+    lblStyle.textContent = t.lblStyle;
+    diffLabelEl.textContent = t.diffLabel;
+    genderLabelEl.textContent = t.genderLabel;
+    document.getElementById('diff-easy').textContent = t.easy;
+    document.getElementById('diff-normal').textContent = t.normal;
+    document.getElementById('diff-hard').textContent = t.hard;
+    startBtn.textContent = t.startBtn;
+    retryBtn.textContent = t.retryBtn;
+    shareLabel.textContent = t.shareLabel;
+    langButtons.forEach(b => b.classList.toggle('active', b.dataset.lang === lang));
+  }
+
+  langButtons.forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      lang = btn.dataset.lang;
+      applyLang();
+    });
+  });
+
+  applyLang();
+
+  const DIFFICULTIES = {
+    easy:   { minStart:11.5, maxStart:16.0, minFloor:8.5, maxFloor:11.5, rampMin:0.014, rampMax:0.018 },
+    normal: { minStart:6.5, maxStart:9.5,  minFloor:3.5, maxFloor:5.0, rampMin:0.038, rampMax:0.050 },
+    hard:   { minStart:5.5, maxStart:8.5,  minFloor:2.8, maxFloor:4.2, rampMin:0.045, rampMax:0.060 }
+  };
+  let difficulty = 'normal';
+  let gender = 'female';
+
+  genderButtons.forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      gender = btn.dataset.gender;
+      genderButtons.forEach(b=>b.classList.toggle('active', b === btn));
+    });
+  });
+
+  diffButtons.forEach(btn=>{
+    btn.addEventListener('click', ()=>{
+      difficulty = btn.dataset.diff;
+      diffButtons.forEach(b=>b.classList.toggle('active', b === btn));
+    });
+  });
+
+  const ITEMS = [
+    {icon:'💻', cat:'tech'}, {icon:'🎧', cat:'tech'}, {icon:'📱', cat:'tech'}, {icon:'⌨️', cat:'tech'},
+    {icon:'⛱️', cat:'beach'}, {icon:'🦩', cat:'beach'}, {icon:'⭐', cat:'beach'}, {icon:'🐚', cat:'beach'},
+    {icon:'🕶️', cat:'style'}, {icon:'🩴', cat:'style'}, {icon:'💄', cat:'style'}
+  ];
+
+  let score = 0, lives = 3, combo = 0, best = 0;
+  let timeLeft = 60, running = false;
+  let spawnTimer = null, tickTimer = null;
+  let fallSpeedMin = 5.5, fallSpeedMax = 8.5; // seconds to fall, decreases over time
+  let activeItems = [];
+  let gameAreaHeight = 0, bagsTop = 0;
+
+  function measure(){
+    gameAreaHeight = game.clientHeight;
+    bagsTop = bagsEl.getBoundingClientRect().top - game.getBoundingClientRect().top;
+  }
+
+  function resetGame(){
+    score = 0; lives = 3; combo = 0; timeLeft = 60;
+    const d = DIFFICULTIES[difficulty];
+    fallSpeedMin = d.minStart; fallSpeedMax = d.maxStart;
+    activeItems.forEach(it => it.el.remove());
+    activeItems = [];
+    scoreEl.textContent = '0';
+    timerEl.textContent = '60';
+    updateLives();
+    updateCombo();
+  }
+
+  function updateLives(){
+    livesEl.textContent = '☀️'.repeat(Math.max(lives,0)) + '🌑'.repeat(Math.max(3-lives,0));
+  }
+
+  function updateCombo(){
+    const mult = comboMultiplier();
+    comboLabel.textContent = 'COMBO x' + mult;
+    comboLabel.style.opacity = combo > 0 ? '1' : '0';
+    const rotation = Math.min(combo * 18, 360);
+    umbrellaEl.style.transform = 'rotate(' + rotation + 'deg) scale(' + (1 + Math.min(combo,5)*0.06) + ')';
+  }
+
+  function comboMultiplier(){
+    if(combo >= 9) return 4;
+    if(combo >= 6) return 3;
+    if(combo >= 3) return 2;
+    return 1;
+  }
+
+  function flashMiss(){
+    missFlash.style.opacity = '0.25';
+    setTimeout(()=> missFlash.style.opacity = '0', 120);
+  }
+
+  function startGame(){
+    measure();
+    resetGame();
+    running = true;
+    startScreen.classList.add('hidden');
+    endScreen.classList.add('hidden');
+    hud.classList.remove('hidden');
+    bagsEl.classList.remove('hidden');
+    wavesEl.classList.remove('hidden');
+    flamingoEl.classList.remove('hidden');
+    comboWrap.classList.remove('hidden');
+    cornerBadge.classList.remove('hidden');
+
+    tickTimer = setInterval(()=>{
+      timeLeft -= 1;
+      timerEl.textContent = timeLeft;
+      // ramp difficulty toward this preset's floor
+      const d = DIFFICULTIES[difficulty];
+      const elapsed = 60 - timeLeft;
+      fallSpeedMin = Math.max(d.minFloor, d.minStart - elapsed*d.rampMin);
+      fallSpeedMax = Math.max(d.maxFloor, d.maxStart - elapsed*d.rampMax);
+      if(timeLeft <= 0 || lives <= 0){
+        endGame(timeLeft <= 0 ? TEXT[lang].timeUp : TEXT[lang].outOfSun);
+      }
+    }, 1000);
+
+    scheduleSpawn();
+  }
+
+  function scheduleSpawn(){
+    if(!running) return;
+    spawnItem();
+    const delay = 850 + Math.random()*550;
+    spawnTimer = setTimeout(scheduleSpawn, delay);
+  }
+
+  function spawnItem(){
+    if(!running) return;
+    measure();
+    const def = ITEMS[Math.floor(Math.random()*ITEMS.length)];
+    const el = document.createElement('div');
+    el.className = 'item';
+    el.textContent = def.icon;
+    const maxX = game.clientWidth - 56;
+    const startX = 20 + Math.random()*(maxX-40);
+    el.style.left = startX + 'px';
+    el.style.top = '-60px';
+    game.appendChild(el);
+
+    const duration = fallSpeedMin + Math.random()*(fallSpeedMax-fallSpeedMin);
+    const obj = {el, cat:def.cat, x:startX, y:-60, fromY:-60, startTime:performance.now(), duration:duration*1000, dragging:false, dead:false};
+    activeItems.push(obj);
+    attachDrag(obj);
+  }
+
+  function attachDrag(obj){
+    let offsetX=0, offsetY=0;
+    const el = obj.el;
+
+    function pointerDown(e){
+      if(obj.dead) return;
+      obj.dragging = true;
+      el.classList.add('dragging');
+      const rect = el.getBoundingClientRect();
+      const point = e.touches ? e.touches[0] : e;
+      offsetX = point.clientX - rect.left;
+      offsetY = point.clientY - rect.top;
+      e.preventDefault();
+    }
+    function pointerMove(e){
+      if(!obj.dragging) return;
+      const gameRect = game.getBoundingClientRect();
+      const point = e.touches ? e.touches[0] : e;
+      let nx = point.clientX - gameRect.left - offsetX;
+      let ny = point.clientY - gameRect.top - offsetY;
+      obj.x = nx; obj.y = ny;
+      el.style.left = nx + 'px';
+      el.style.top = ny + 'px';
+      highlightBag(point.clientX, point.clientY);
+      e.preventDefault();
+    }
+    function pointerUp(e){
+      if(!obj.dragging) return;
+      obj.dragging = false;
+      el.classList.remove('dragging');
+      bags.forEach(b=>b.classList.remove('hover'));
+      const point = (e.changedTouches ? e.changedTouches[0] : e);
+      const bagEl = bagAt(point.clientX, point.clientY);
+      if(bagEl){
+        resolveDrop(obj, bagEl.dataset.cat);
+      } else {
+        // released mid-air: resume falling smoothly from the current position
+        const floor = bagsTop + 60;
+        const originalSpan = floor - obj.fromY;
+        const speed = originalSpan > 0 ? (obj.duration / originalSpan) : (obj.duration / 1);
+        const remaining = Math.max(floor - obj.y, 0);
+        obj.fromY = obj.y;
+        obj.startTime = performance.now();
+        obj.duration = Math.max(150, remaining * speed);
+      }
+    }
+
+    el.addEventListener('mousedown', pointerDown);
+    el.addEventListener('touchstart', pointerDown, {passive:false});
+    window.addEventListener('mousemove', pointerMove, {passive:false});
+    window.addEventListener('touchmove', pointerMove, {passive:false});
+    window.addEventListener('mouseup', pointerUp);
+    window.addEventListener('touchend', pointerUp);
+
+    obj.cleanup = ()=>{
+      el.removeEventListener('mousedown', pointerDown);
+      el.removeEventListener('touchstart', pointerDown);
+      window.removeEventListener('mousemove', pointerMove);
+      window.removeEventListener('touchmove', pointerMove);
+      window.removeEventListener('mouseup', pointerUp);
+      window.removeEventListener('touchend', pointerUp);
+    };
+  }
+
+  function highlightBag(clientX, clientY){
+    bags.forEach(b=>{
+      const r = b.getBoundingClientRect();
+      const inside = clientX>=r.left && clientX<=r.right && clientY>=r.top && clientY<=r.bottom;
+      b.classList.toggle('hover', inside);
+    });
+  }
+
+  function bagAt(clientX, clientY){
+    return bags.find(b=>{
+      const r = b.getBoundingClientRect();
+      return clientX>=r.left && clientX<=r.right && clientY>=r.top && clientY<=r.bottom;
+    }) || null;
+  }
+
+  function resolveDrop(obj, cat){
+    if(obj.dead) return;
+    if(cat === obj.cat){
+      combo += 1;
+      const mult = comboMultiplier();
+      score += 10 * mult;
+      scoreEl.textContent = score;
+      updateCombo();
+      popItem(obj, true);
+    } else {
+      combo = 0;
+      lives -= 1;
+      updateLives();
+      updateCombo();
+      flashMiss();
+      popItem(obj, false);
+      if(lives <= 0) endGame(TEXT[lang].outOfSun);
+    }
+  }
+
+  function popItem(obj, success){
+    obj.dead = true;
+    obj.el.style.transition = 'transform .18s ease, opacity .18s ease';
+    obj.el.style.transform = 'scale(' + (success?1.3:0.7) + ')';
+    obj.el.style.opacity = '0';
+    setTimeout(()=>{ obj.cleanup && obj.cleanup(); obj.el.remove(); }, 180);
+    activeItems = activeItems.filter(i => i !== obj);
+  }
+
+  function gameLoop(ts){
+    if(running){
+      activeItems.forEach(obj=>{
+        if(obj.dragging || obj.dead) return;
+        const elapsed = ts - obj.startTime;
+        const progress = Math.min(elapsed / obj.duration, 1);
+        const floor = bagsTop + 60;
+        const newY = obj.fromY + progress * (floor - obj.fromY);
+        obj.y = newY;
+        obj.el.style.top = newY + 'px';
+        if(progress >= 1){
+          // hit the sand = miss
+          combo = 0;
+          lives -= 1;
+          updateLives();
+          updateCombo();
+          flashMiss();
+          popItem(obj, false);
+          if(lives <= 0) endGame(TEXT[lang].outOfSun);
+        }
+      });
+    }
+    requestAnimationFrame(gameLoop);
+  }
+  requestAnimationFrame(gameLoop);
+
+  function endGame(reason){
+    if(!running) return;
+    running = false;
+    clearInterval(tickTimer);
+    clearTimeout(spawnTimer);
+    activeItems.forEach(obj=>{ obj.cleanup && obj.cleanup(); obj.el.remove(); });
+    activeItems = [];
+
+    hud.classList.add('hidden');
+    bagsEl.classList.add('hidden');
+    wavesEl.classList.add('hidden');
+    flamingoEl.classList.add('hidden');
+    comboWrap.classList.add('hidden');
+    cornerBadge.classList.add('hidden');
+
+    best = Math.max(best, score);
+    finalTagEl.textContent = reason;
+    finalScoreEl.textContent = score;
+    const t = TEXT[lang];
+    endMessage.textContent = score >= 400 ? (gender === 'male' ? t.msgHighM : t.msgHighF) : score >= 200 ? t.msgMid : t.msgLow;
+    endScreen.classList.remove('hidden');
+  }
+
+  startBtn.addEventListener('click', startGame);
+  retryBtn.addEventListener('click', startGame);
+  window.addEventListener('resize', measure);
+
+  shareBtn.addEventListener('click', async ()=>{
+    const t = TEXT[lang];
+    const shareData = {
+      title: 'Beach Bag Blitz',
+      text: t.shareText(score),
+      url: window.location.href
+    };
+    if(navigator.share){
+      try{ await navigator.share(shareData); }
+      catch(err){ /* user cancelled — no-op */ }
+    } else {
+      const fallbackText = shareData.text + ' ' + shareData.url;
+      try{
+        await navigator.clipboard.writeText(fallbackText);
+      } catch(err){
+        // clipboard unavailable — select-and-copy fallback
+        const ta = document.createElement('textarea');
+        ta.value = fallbackText;
+        ta.style.position = 'fixed'; ta.style.opacity = '0';
+        document.body.appendChild(ta);
+        ta.select();
+        try{ document.execCommand('copy'); } catch(e2){}
+        document.body.removeChild(ta);
+      }
+      shareToast.textContent = t.copied;
+      shareToast.classList.add('show');
+      setTimeout(()=> shareToast.classList.remove('show'), 2200);
+    }
+  });
+
+  // --- background music ---
+  const bgMusic = document.getElementById('bg-music');
+  const musicToggle = document.getElementById('music-toggle');
+  bgMusic.volume = 0.55;
+
+  function tryPlayMusic(){
+    bgMusic.play().catch(()=>{ /* blocked until a user gesture happens */ });
+  }
+  // Most mobile browsers block autoplay with sound until a real user gesture.
+  // Start it on the first tap/click anywhere, then never re-attach.
+  function firstGestureHandler(){
+    tryPlayMusic();
+    document.removeEventListener('click', firstGestureHandler);
+    document.removeEventListener('touchstart', firstGestureHandler);
+  }
+  document.addEventListener('click', firstGestureHandler);
+  document.addEventListener('touchstart', firstGestureHandler);
+
+  musicToggle.addEventListener('click', (e)=>{
+    e.stopPropagation();
+    bgMusic.muted = !bgMusic.muted;
+    musicToggle.textContent = bgMusic.muted ? '🔇' : '🔊';
+    if(!bgMusic.muted) tryPlayMusic();
+  });
+})();
+</script>
+</body>
+</html>
