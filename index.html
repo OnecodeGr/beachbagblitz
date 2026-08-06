@@ -7,6 +7,14 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="preload" href="assets/music/music_0.mp3" as="audio">
+<!--
+  Optional: Cloudflare Web Analytics (free, cookieless pageview/performance metrics).
+  Web Analytics does not support custom events (games started/completed, share usage, etc. —
+  see /api/event and /api/stats in worker/index.js for that instead). To enable baseline
+  pageview tracking, create a site at Cloudflare dashboard → Account Home → Web Analytics,
+  then uncomment this and replace YOUR_WEB_ANALYTICS_TOKEN with the token it gives you:
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js" data-cf-beacon='{"token": "YOUR_WEB_ANALYTICS_TOKEN"}'></script>
+-->
 <style>
   @import url('https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600;700&family=Poppins:wght@400;500;600&display=swap');
 
@@ -107,6 +115,26 @@
     box-shadow:0 10px 26px rgba(236,31,110,0.4);
     border-color:var(--pink-soft);
     z-index:30;
+  }
+  .item.powerup{
+    border-color:var(--sand);
+    box-shadow:0 0 16px 4px rgba(255,233,199,0.55), 0 6px 18px rgba(0,0,0,0.35);
+    animation:powerup-pulse 1s ease-in-out infinite;
+  }
+  @keyframes powerup-pulse{
+    0%,100%{ transform:scale(1); }
+    50%{ transform:scale(1.08); }
+  }
+
+  .float-text{
+    position:absolute;
+    font-family:'Fredoka',sans-serif; font-weight:700; font-size:16px;
+    pointer-events:none; z-index:45;
+    animation:float-up 1s ease-out forwards;
+  }
+  @keyframes float-up{
+    0%{ transform:translateY(0); opacity:1; }
+    100%{ transform:translateY(-40px); opacity:0; }
   }
 
   /* bags */
@@ -420,6 +448,7 @@
   .lb-row-me{ border-color:var(--pink-soft); background:rgba(236,31,110,0.14); }
   .lb-rank{ font-family:'Fredoka',sans-serif; font-weight:700; color:var(--purple-soft); width:28px; }
   .lb-name{ flex:1; text-align:left; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .lb-streak{ font-size:11px; color:var(--sand); opacity:0.8; }
   .lb-score{ font-family:'Fredoka',sans-serif; font-weight:700; color:var(--sand); }
   .lb-empty{
     font-size:13px; color:rgba(255,255,255,0.5);
@@ -627,7 +656,7 @@
       copied: 'Αντιγράφηκε στο πρόχειρο!',
       nameLabel: 'Το όνομά σου', invalidName: 'Δώσε ένα όνομα χωρίς links.',
       dailyBtn: 'Daily Challenge',
-      dailyReady: 'Ίδια πρόκληση για όλους σήμερα — 1 προσπάθεια.',
+      dailyReady: n => `Ίδια πρόκληση για όλους σήμερα — κρατάμε το καλύτερο σκορ από 3 προσπάθειες. Απομένουν ${n}.`,
       dailyDone: ms => `Ξαναέλα σε ${formatCountdown(ms)} για τη νέα πρόκληση.`,
       streak: n => `🔥 Σερί ${n} ${n === 1 ? 'μέρα' : 'μέρες'}`,
       leaderboardBtn: 'Κατάταξη',
@@ -654,7 +683,7 @@
       copied: 'Copied to clipboard!',
       nameLabel: 'Your name', invalidName: 'Please enter a name without links.',
       dailyBtn: 'Daily Challenge',
-      dailyReady: 'Same challenge for everyone today — 1 attempt.',
+      dailyReady: n => `Same challenge for everyone today — we keep your best of 3 attempts. ${n} left.`,
       dailyDone: ms => `Come back in ${formatCountdown(ms)} for the next challenge.`,
       streak: n => `🔥 ${n} day streak`,
       leaderboardBtn: 'Leaderboard',
@@ -681,7 +710,7 @@
     genderLabelEl.textContent = t.genderLabel;
     document.getElementById('diff-easy').textContent = t.easy;
     document.getElementById('diff-normal').textContent = t.normal;
-    document.getElementById('diff-hard').textContent = t.hard;
+    document.getElementById('diff-hard').textContent = t.hard + ' +30%';
     startBtn.textContent = t.startBtn;
     retryBtn.textContent = t.retryBtn;
     shareLabel.textContent = t.shareLabel;
@@ -705,9 +734,9 @@
   });
 
   const DIFFICULTIES = {
-    easy:   { minStart:11.5, maxStart:16.0, minFloor:8.5, maxFloor:11.5, rampMin:0.014, rampMax:0.018 },
-    normal: { minStart:6.5, maxStart:9.5,  minFloor:3.5, maxFloor:5.0, rampMin:0.038, rampMax:0.050 },
-    hard:   { minStart:5.5, maxStart:8.5,  minFloor:2.8, maxFloor:4.2, rampMin:0.045, rampMax:0.060 }
+    easy:   { minStart:11.5, maxStart:16.0, minFloor:8.5, maxFloor:11.5, rampMin:0.014, rampMax:0.018, scoreMult:1 },
+    normal: { minStart:6.5, maxStart:9.5,  minFloor:3.5, maxFloor:5.0, rampMin:0.038, rampMax:0.050, scoreMult:1 },
+    hard:   { minStart:5.5, maxStart:8.5,  minFloor:2.8, maxFloor:4.2, rampMin:0.045, rampMax:0.060, scoreMult:1.3 }
   };
   let difficulty = 'normal';
   let preDailyDifficulty = null;
@@ -807,7 +836,9 @@
   let rng = Math.random;
   let isDailyRun = false;
 
-  // --- daily challenge: same seed for everyone, one attempt per local day, streak tracking ---
+  // --- daily challenge: same seed for everyone, best of 3 attempts per local day, streak tracking ---
+  const DAILY_MAX_ATTEMPTS = 3;
+
   function formatCountdown(ms){
     const totalMin = Math.max(0, Math.ceil(ms / 60000));
     const h = Math.floor(totalMin / 60);
@@ -831,20 +862,31 @@
     return parseInt(localStorage.getItem('bbb_streak') || '0', 10);
   }
 
-  function recordDailyPlayed(){
-    const today = todayKey();
-    const lastStreakDate = localStorage.getItem('bbb_streakLastDate');
-    let streak = getStreak();
-    if(lastStreakDate === yesterdayKey()) streak += 1;
-    else if(lastStreakDate !== today) streak = 1;
-    localStorage.setItem('bbb_dailyLastPlayed', today);
-    localStorage.setItem('bbb_streak', String(streak));
-    localStorage.setItem('bbb_streakLastDate', today);
-    return streak;
+  function getDailyAttempts(){
+    if(localStorage.getItem('bbb_dailyAttemptsDate') !== todayKey()) return 0;
+    return parseInt(localStorage.getItem('bbb_dailyAttemptsCount') || '0', 10);
   }
 
-  function hasPlayedDailyToday(){
-    return localStorage.getItem('bbb_dailyLastPlayed') === todayKey();
+  function hasDailyAttemptsLeft(){
+    return getDailyAttempts() < DAILY_MAX_ATTEMPTS;
+  }
+
+  function recordDailyAttempt(){
+    const today = todayKey();
+    const isFirstAttemptToday = getDailyAttempts() === 0;
+    const attempts = getDailyAttempts() + 1;
+    localStorage.setItem('bbb_dailyAttemptsDate', today);
+    localStorage.setItem('bbb_dailyAttemptsCount', String(attempts));
+
+    if(isFirstAttemptToday){
+      const lastStreakDate = localStorage.getItem('bbb_streakLastDate');
+      let streak = getStreak();
+      if(lastStreakDate === yesterdayKey()) streak += 1;
+      else if(lastStreakDate !== today) streak = 1;
+      localStorage.setItem('bbb_streak', String(streak));
+      localStorage.setItem('bbb_streakLastDate', today);
+    }
+    return attempts;
   }
 
   function streakBadgeHtml(){
@@ -852,15 +894,16 @@
     return streak > 1 ? `<div class="streak-badge">${TEXT[lang].streak(streak)}</div>` : '';
   }
 
-  function renderDailyStatus(){
+  function dailyStatusHtml(){
     const t = TEXT[lang];
-    if(hasPlayedDailyToday()){
-      dailyBtn.disabled = true;
-      dailyStatusEl.innerHTML = streakBadgeHtml() + `<div>${t.dailyDone(msUntilNextLocalMidnight())}</div>`;
-    } else {
-      dailyBtn.disabled = false;
-      dailyStatusEl.innerHTML = streakBadgeHtml() + `<div>${t.dailyReady}</div>`;
-    }
+    const remaining = DAILY_MAX_ATTEMPTS - getDailyAttempts();
+    if(remaining <= 0) return streakBadgeHtml() + `<div>${t.dailyDone(msUntilNextLocalMidnight())}</div>`;
+    return streakBadgeHtml() + `<div>${t.dailyReady(remaining)}</div>`;
+  }
+
+  function renderDailyStatus(){
+    dailyBtn.disabled = !hasDailyAttemptsLeft();
+    dailyStatusEl.innerHTML = dailyStatusHtml();
   }
 
   refreshNameField();
@@ -872,6 +915,13 @@
     {icon:'⛱️', cat:'beach'}, {icon:'🦩', cat:'beach'}, {icon:'⭐', cat:'beach'}, {icon:'🐚', cat:'beach'},
     {icon:'🕶️', cat:'style'}, {icon:'🩴', cat:'style'}, {icon:'💄', cat:'style'}
   ];
+  // Rare bonus items — visually distinct, not tied to a category, catchable in ANY bag.
+  const POWERUPS = [
+    {icon:'🛟', type:'life'},
+    {icon:'❄️', type:'freeze'}
+  ];
+  const POWERUP_CHANCE = 0.08;
+  const FREEZE_DURATION_MS = 3000;
 
   let score = 0, lives = 3, combo = 0, best = 0;
   let timeLeft = 60, running = false;
@@ -879,6 +929,7 @@
   let fallSpeedMin = 5.5, fallSpeedMax = 8.5; // seconds to fall, decreases over time
   let activeItems = [];
   let gameAreaHeight = 0, bagsTop = 0;
+  let frozenUntil = 0;
 
   function measure(){
     gameAreaHeight = game.clientHeight;
@@ -887,6 +938,7 @@
 
   function resetGame(){
     score = 0; lives = 3; combo = 0; timeLeft = 60;
+    frozenUntil = 0;
     const d = DIFFICULTIES[difficulty];
     fallSpeedMin = d.minStart; fallSpeedMax = d.maxStart;
     activeItems.forEach(it => it.el.remove());
@@ -1004,20 +1056,21 @@
     comboWrap.classList.remove('hidden');
     cornerBadge.classList.remove('hidden');
 
-    tickTimer = setInterval(()=>{
-      timeLeft -= 1;
-      timerEl.textContent = timeLeft;
-      // ramp difficulty toward this preset's floor
-      const d = DIFFICULTIES[difficulty];
-      const elapsed = 60 - timeLeft;
-      fallSpeedMin = Math.max(d.minFloor, d.minStart - elapsed*d.rampMin);
-      fallSpeedMax = Math.max(d.maxFloor, d.maxStart - elapsed*d.rampMax);
-      if(timeLeft <= 0 || lives <= 0){
-        endGame(timeLeft <= 0 ? TEXT[lang].timeUp : TEXT[lang].outOfSun);
-      }
-    }, 1000);
-
+    tickTimer = setInterval(gameTick, 1000);
     scheduleSpawn();
+  }
+
+  function gameTick(){
+    timeLeft -= 1;
+    timerEl.textContent = timeLeft;
+    // ramp difficulty toward this preset's floor
+    const d = DIFFICULTIES[difficulty];
+    const elapsed = 60 - timeLeft;
+    fallSpeedMin = Math.max(d.minFloor, d.minStart - elapsed*d.rampMin);
+    fallSpeedMax = Math.max(d.maxFloor, d.maxStart - elapsed*d.rampMax);
+    if(timeLeft <= 0 || lives <= 0){
+      endGame(timeLeft <= 0 ? TEXT[lang].timeUp : TEXT[lang].outOfSun);
+    }
   }
 
   function scheduleSpawn(){
@@ -1030,9 +1083,10 @@
   function spawnItem(){
     if(!running) return;
     measure();
-    const def = ITEMS[Math.floor(rng()*ITEMS.length)];
+    const isPowerUp = rng() < POWERUP_CHANCE;
+    const def = isPowerUp ? POWERUPS[Math.floor(rng()*POWERUPS.length)] : ITEMS[Math.floor(rng()*ITEMS.length)];
     const el = document.createElement('div');
-    el.className = 'item';
+    el.className = 'item' + (isPowerUp ? ' powerup' : '');
     el.textContent = def.icon;
     const maxX = game.clientWidth - 56;
     const startX = 20 + rng()*(maxX-40);
@@ -1041,9 +1095,39 @@
     game.appendChild(el);
 
     const duration = fallSpeedMin + rng()*(fallSpeedMax-fallSpeedMin);
-    const obj = {el, cat:def.cat, x:startX, y:-60, fromY:-60, startTime:performance.now(), duration:duration*1000, dragging:false, dead:false};
+    const obj = {el, cat:isPowerUp ? null : def.cat, powerUp:isPowerUp ? def.type : null, x:startX, y:-60, fromY:-60, startTime:performance.now(), duration:duration*1000, dragging:false, dead:false};
     activeItems.push(obj);
     attachDrag(obj);
+  }
+
+  function showFloatingText(x, y, text, color){
+    const el = document.createElement('div');
+    el.className = 'float-text';
+    el.textContent = text;
+    el.style.left = x + 'px';
+    el.style.top = y + 'px';
+    if(color) el.style.color = color;
+    game.appendChild(el);
+    setTimeout(()=> el.remove(), 1000);
+  }
+
+  function activatePowerUp(obj, type){
+    if(type === 'life'){
+      if(lives < 3){ lives += 1; updateLives(); }
+      showFloatingText(obj.x + 28, obj.y, '+1 ☀️', 'var(--sand)');
+    } else if(type === 'freeze'){
+      const now = performance.now();
+      frozenUntil = now + FREEZE_DURATION_MS;
+      clearTimeout(spawnTimer);
+      clearInterval(tickTimer);
+      showFloatingText(obj.x + 28, obj.y, '❄️ FREEZE', 'var(--purple-soft)');
+      setTimeout(()=>{
+        if(!running) return;
+        activeItems.forEach(o => { o.startTime += FREEZE_DURATION_MS; });
+        tickTimer = setInterval(gameTick, 1000);
+        scheduleSpawn();
+      }, FREEZE_DURATION_MS);
+    }
   }
 
   function attachDrag(obj){
@@ -1127,10 +1211,18 @@
 
   function resolveDrop(obj, cat){
     if(obj.dead) return;
+    if(obj.powerUp){
+      activatePowerUp(obj, obj.powerUp);
+      playDing(2);
+      vibrate(15);
+      celebrateCatch(obj, 2);
+      popItem(obj, true);
+      return;
+    }
     if(cat === obj.cat){
       combo += 1;
       const mult = comboMultiplier();
-      score += 10 * mult;
+      score += Math.round(10 * mult * DIFFICULTIES[difficulty].scoreMult);
       scoreEl.textContent = score;
       updateCombo();
       playDing(mult);
@@ -1160,7 +1252,7 @@
   }
 
   function gameLoop(ts){
-    if(running){
+    if(running && ts >= frozenUntil){
       activeItems.forEach(obj=>{
         if(obj.dragging || obj.dead) return;
         const elapsed = ts - obj.startTime;
@@ -1170,6 +1262,11 @@
         obj.y = newY;
         obj.el.style.top = newY + 'px';
         if(progress >= 1){
+          if(obj.powerUp){
+            // unclaimed bonus item — just fades away, no penalty
+            popItem(obj, false);
+            return;
+          }
           // hit the sand = miss
           combo = 0;
           lives -= 1;
@@ -1201,7 +1298,7 @@
     lbListEl.innerHTML = entries.map((e, i) => `
       <div class="lb-row${e.id === playerId ? ' lb-row-me' : ''}">
         <span class="lb-rank">#${i+1}</span>
-        <span class="lb-name">${escapeHtml(e.name)}</span>
+        <span class="lb-name">${escapeHtml(e.name)}${e.streak > 1 ? ` <span class="lb-streak">🔥${e.streak}</span>` : ''}</span>
         <span class="lb-score">${e.score}</span>
       </div>
     `).join('');
@@ -1232,13 +1329,27 @@
   lbTabDaily.addEventListener('click', ()=> openLeaderboard('daily'));
   lbTabAlltime.addEventListener('click', ()=> openLeaderboard('alltime'));
 
+  // --- basic, cookieless event tracking (own Worker/KV — Cloudflare Web Analytics has no custom-event support) ---
+  function trackEvent(type, extra){
+    try{
+      const payload = JSON.stringify({ type, lang, difficulty: (extra && extra.difficulty) || undefined, mode: (extra && extra.mode) || undefined, score: (extra && extra.score) });
+      if(navigator.sendBeacon){
+        navigator.sendBeacon('/api/event', new Blob([payload], {type:'application/json'}));
+      } else {
+        fetch('/api/event', { method:'POST', headers:{'content-type':'application/json'}, body: payload, keepalive:true }).catch(()=>{});
+      }
+    } catch(err){
+      // analytics must never break gameplay
+    }
+  }
+
   async function submitScore(finalScore){
     rankNoteEl.textContent = '';
     try{
       const res = await fetch('/api/score', {
         method: 'POST',
         headers: {'content-type':'application/json'},
-        body: JSON.stringify({ id: playerId, name: playerName, score: finalScore, mode: isDailyRun ? 'daily' : 'free' })
+        body: JSON.stringify({ id: playerId, name: playerName, score: finalScore, mode: isDailyRun ? 'daily' : 'free', streak: getStreak() })
       });
       if(!res.ok) return;
       const data = await res.json();
@@ -1272,9 +1383,10 @@
     finalScoreEl.textContent = score;
     const t = TEXT[lang];
     endMessage.textContent = score >= 400 ? (gender === 'male' ? t.msgHighM : t.msgHighF) : score >= 200 ? t.msgMid : t.msgLow;
-    endDailyStatusEl.innerHTML = isDailyRun ? streakBadgeHtml() + `<div>${t.dailyDone(msUntilNextLocalMidnight())}</div>` : '';
+    endDailyStatusEl.innerHTML = isDailyRun ? dailyStatusHtml() : '';
     endScreen.classList.remove('hidden');
     submitScore(score);
+    trackEvent('game_completed', { score });
     renderDailyStatus();
 
     if(isDailyRun && preDailyDifficulty){
@@ -1289,24 +1401,29 @@
     isDailyRun = false;
     rng = Math.random;
     startGame();
+    trackEvent('game_started', { difficulty, mode: 'free' });
   }
 
   function beginDailyChallenge(){
-    if(hasPlayedDailyToday()) return;
+    if(!hasDailyAttemptsLeft()) return;
     if(!commitPlayerName()) return;
     isDailyRun = true;
     rng = mulberry32(hashSeed('bbb-daily-' + todayKey()));
     preDailyDifficulty = difficulty;
     difficulty = 'normal';
     diffButtons.forEach(b => b.classList.toggle('active', b.dataset.diff === 'normal'));
-    recordDailyPlayed();
+    recordDailyAttempt();
     renderDailyStatus();
     startGame();
+    trackEvent('game_started', { difficulty: 'normal', mode: 'daily' });
   }
 
   startBtn.addEventListener('click', beginFreePlay);
   dailyBtn.addEventListener('click', beginDailyChallenge);
-  retryBtn.addEventListener('click', beginFreePlay);
+  retryBtn.addEventListener('click', ()=>{
+    if(isDailyRun && hasDailyAttemptsLeft()) beginDailyChallenge();
+    else beginFreePlay();
+  });
   window.addEventListener('resize', measure);
 
   // --- branded screenshot share (canvas → Web Share API files, with a download fallback) ---
@@ -1394,6 +1511,7 @@
   }
 
   shareBtn.addEventListener('click', ()=>{
+    trackEvent('share_used');
     const t = TEXT[lang];
     const canvas = buildShareCanvas(score, playerName || suggestedName);
     canvas.toBlob(async (blob)=>{

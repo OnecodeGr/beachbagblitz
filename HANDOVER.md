@@ -83,12 +83,18 @@ sandbox, οπότε ο κώδικας είναι έτοιμος αλλά χρε�
 
 - **Γλώσσα**: ΕΛ/EN toggle πάνω δεξιά στην αρχική οθόνη — αλλάζει οδηγίες, ετικέτες τσαντών,
   δυσκολία, μηνύματα τέλους, και όλα τα κείμενα leaderboard/daily challenge.
-- **Δυσκολία**: Εύκολο / Κανονικό / Δύσκολο — επηρεάζει μόνο την ταχύτητα πτώσης, όχι το
-  σκοράρισμα. Στο Daily Challenge είναι πάντα κλειδωμένη στο "Κανονικό" (για δίκαιη σύγκριση) και
-  επαναφέρεται στην προηγούμενη επιλογή μόλις τελειώσει η daily προσπάθεια.
+- **Δυσκολία**: Εύκολο / Κανονικό / Δύσκολο — επηρεάζει την ταχύτητα πτώσης, **και** το σκοράρισμα:
+  το Δύσκολο δίνει **+30% πόντους ανά catch** (`DIFFICULTIES[d].scoreMult`). Στο Daily Challenge
+  είναι πάντα κλειδωμένη στο "Κανονικό" (για δίκαιη σύγκριση) και επαναφέρεται στην προηγούμενη
+  επιλογή μόλις τελειώσουν οι daily προσπάθειες.
 - **Φύλο** (👙/🩳): επηρεάζει μόνο το κείμενο του "certified champion" μηνύματος στο τέλος.
 - **Ήχοι εφέ / confetti / haptics**: ding στο σωστό catch, buzz στο miss (synthesized με Web Audio
   API, όχι αρχεία), confetti burst που κλιμακώνεται με το combo, `navigator.vibrate(10)`.
+- **Power-ups**: σπάνια bonus items (8% ανά spawn, `POWERUP_CHANCE`), οπτικά ξεχωριστά (χρυσό
+  glow, pulsing animation), πιάνονται σε **οποιαδήποτε** τσάντα (δεν ανήκουν σε κατηγορία):
+  - 🛟 δίνει πίσω 1 ζωή (μέχρι το cap των 3) αν λείπει κάποια.
+  - ❄️ παγώνει τα πάντα (falling items + το countdown) για 3 δευτερόλεπτα — δεν χάνεις ζωή αν ένα
+    power-up φτάσει στην άμμο αχρησιμοποίητο, απλά χάνεται σιωπηλά.
 - **Μοιράσου το σκορ**: branded εικόνα (canvas) πάνω σε onecode styling μέσω Web Share API
   (`files`), με fallback σε download εικόνας + copy κειμένου στο clipboard.
 
@@ -101,17 +107,40 @@ sandbox, οπότε ο κώδικας είναι έτοιμος αλλά χρε�
 - **Persistent player id**: `crypto.randomUUID()` αποθηκευμένο σε `localStorage`
   (`bbb_playerId`) — ταυτοποιεί τον παίκτη στο leaderboard χωρίς λογαριασμό/login.
 - **Leaderboard**: δύο tabs, "Σήμερα" (μηδενίζεται κάθε μέρα) και "Όλων των εποχών" — top 10 σε
-  KV. Κάθε κανονική προσπάθεια τροφοδοτεί το all-time board· μόνο το Daily Challenge τροφοδοτεί
-  και το daily board.
-- **Daily Challenge**: ξεχωριστό κουμπί, **1 προσπάθεια/μέρα** (enforcement client-side μέσω
-  `localStorage`, όχι server-side — ένας αποφασισμένος χρήστης θα μπορούσε να το παρακάμψει
-  καθαρίζοντας localStorage· αποδεκτό ρίσκο για ένα casual καλοκαιρινό microsite). Όλοι οι
-  παίκτες παίζουν την **ίδια ακολουθία αντικειμένων** μέσα στην ίδια ημέρα — seeded PRNG
-  (mulberry32) με seed από την ημερομηνία (Europe/Athens, UTC+3 hardcoded — δες παρακάτω).
-- **Streak**: μετράει συνεχόμενες ημέρες daily challenge σε `localStorage`, εμφανίζεται σαν 🔥
-  badge δίπλα στο daily status και στο end screen.
-- **Countdown**: "Ξαναέλα σε Xh Ym" μετά την ολοκλήρωση του daily challenge, μέχρι το επόμενο
-  τοπικό μεσονύχτι.
+  KV, κρατάει το **καλύτερο σκορ ποτέ ανά παίκτη** (όχι το πιο πρόσφατο submission — `upsertBoard`
+  στο `worker/index.js` κάνει compare-and-keep-max, όχι blind overwrite). Κάθε κανονική
+  προσπάθεια τροφοδοτεί το all-time board· μόνο το Daily Challenge τροφοδοτεί και το daily board.
+  Δίπλα στο όνομα εμφανίζεται 🔥 badge με το streak του παίκτη (αν >1), καθαρά cosmetic.
+- **Daily Challenge**: ξεχωριστό κουμπί, **best of 3 προσπάθειες/μέρα** — κρατάμε το καλύτερο σκορ
+  των 3 (enforcement του attempt-count client-side μέσω `localStorage`, όχι server-side· ένας
+  αποφασισμένος χρήστης θα μπορούσε να το παρακάμψει καθαρίζοντας localStorage — αποδεκτό ρίσκο
+  για ένα casual καλοκαιρινό microsite, το server-side "keep max score" όμως ΔΕΝ παρακάμπτεται
+  έτσι). Το κουμπί "Παίξε ξανά" στο end screen συνεχίζει αυτόματα την daily πρόκληση όσο απομένουν
+  προσπάθειες· μόλις εξαντληθούν, πέφτει σε ελεύθερο παιχνίδι. Όλοι οι παίκτες παίζουν την **ίδια
+  ακολουθία αντικειμένων/power-ups** μέσα στην ίδια ημέρα — seeded PRNG (mulberry32) με seed από
+  την ημερομηνία (Europe/Athens, UTC+3 hardcoded — δες παρακάτω).
+- **Streak**: μετράει συνεχόμενες ημέρες daily challenge σε `localStorage` — αυξάνεται μόνο στην
+  **πρώτη** από τις 3 προσπάθειες κάθε μέρας, όχι σε κάθε προσπάθεια. Εμφανίζεται σαν 🔥 badge στο
+  daily status, στο end screen, και στο leaderboard.
+- **Countdown**: "Ξαναέλα σε Xh Ym" μετά την ολοκλήρωση και των 3 daily προσπαθειών, μέχρι το
+  επόμενο τοπικό μεσονύχτι.
+
+### Βασικό event tracking (analytics)
+
+Το Cloudflare Web Analytics **δεν υποστηρίζει custom events** (επιβεβαιωμένο από τα docs — μόνο
+pageviews/performance). Οπότε το βασικό event tracking που ζητήθηκε (παιχνίδια που ξεκίνησαν/
+ολοκληρώθηκαν, μέσο σκορ, χρήση του share button, ανά γλώσσα/δυσκολία) υλοποιήθηκε σαν δικό μας,
+cookieless endpoint πάνω στο ίδιο Worker/KV:
+
+- `POST /api/event` με `{type: 'game_started'|'game_completed'|'share_used', lang, difficulty, mode, score}`
+  — καλείται από το frontend μέσω `navigator.sendBeacon` (fire-and-forget, δεν μπλοκάρει το UI).
+- `GET /api/stats?date=YYYY-MM-DD` (προεπιλογή: σήμερα) επιστρέφει τα aggregated ημερήσια counters:
+  `gamesStarted`, `gamesCompleted`, `totalScore` (÷ `gamesCompleted` = μέσο σκορ), `shareUsed`,
+  `dailyChallengePlays`, `byLang`, `byDifficulty`. Κανένα PII, κανένα cookie, μόνο aggregate
+  counters ανά ημέρα σε KV (key: `stats:{date}`).
+- Προαιρετικά, υπάρχει commented-out το standard Cloudflare Web Analytics beacon script στο
+  `<head>` του `index.html` για baseline pageview/performance metrics — χρειάζεται να φτιάξεις ένα
+  site στο Cloudflare dashboard (Account Home → Web Analytics) και να βάλεις το token του.
 
 ## Γνωστοί περιορισμοί / σημεία προσοχής
 

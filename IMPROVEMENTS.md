@@ -6,34 +6,23 @@
 ## ✅ Υλοποιημένα
 
 - ~~Ήχοι εφέ (ding/buzz)~~, ~~confetti burst~~, ~~haptic feedback~~, ~~preload ήχου/γραμματοσειρών~~ — done.
-- ~~Leaderboard (Cloudflare KV, Today + All-time top 10, persistent player name/id)~~ — done, δες `HANDOVER.md`.
-- ~~Daily Challenge (seeded RNG, 1 προσπάθεια/μέρα, streak counter, countdown)~~ — done.
+- ~~Leaderboard (Cloudflare KV, Today + All-time top 10, persistent player name/id, keep-best-score)~~ — done, δες `HANDOVER.md`.
+- ~~Daily Challenge (seeded RNG, best of 3 προσπάθειες/μέρα, streak counter, countdown)~~ — done.
+- ~~Daily-board cosmetic streak badge~~ (🔥N δίπλα στο όνομα στο leaderboard) — done.
 - ~~Δυναμικό μήνυμα μοιράσματος με screenshot (canvas → Web Share API files)~~ — done.
+- ~~Power-ups (extra ζωή 🛟, freeze-time ❄️ 3″)~~ — done.
+- ~~Δυσκολία βασισμένη σε score-multiplier (Hard mode +30% πόντοι/catch)~~ — done.
+- ~~Βασικό event tracking~~ (games started/completed, μέσο σκορ, share usage, ανά γλώσσα/δυσκολία) — done, δες `HANDOVER.md` (`/api/event`, `/api/stats`· το Cloudflare Web Analytics δεν υποστηρίζει custom events).
 
 ## Γρήγορες, χαμηλού κόστους
 
 - **Ένα δεύτερο item ανά κατηγορία** (π.χ. 🧴 αντηλιακό στο Beach, ⌚ smartwatch στο Tech) για λίγο
   περισσότερη ποικιλία οπτικά, χωρίς αλλαγή μηχανικής.
 
-## Engagement / retention
-
-- **Daily-board cosmetic badges**: μικρό emoji/badge δίπλα στο όνομα στο leaderboard για όποιον
-  έχει μεγάλο streak — καθαρά επίδειξη, καμία λειτουργική αξία, φθηνό engagement hook.
-
 ## Gameplay depth
 
-- **Power-ups**: π.χ. ένα σπάνιο flamingo float item που δίνει extra ζωή, ή freeze-time για 3″.
 - **Boss/rush round** στα τελευταία 10″ όπου πέφτουν πολλά items ταυτόχρονα για ένταση στο τέλος.
-- **Δυσκολία βασισμένη σε score-multiplier** αντί μόνο σε ταχύτητα (π.χ. Hard mode δίνει
-  περισσότερους πόντους ανά catch) — απάντηση στο ερώτημα που είχε μπει νωρίτερα στη συζήτηση.
 - **Landscape/tablet layout** αν το analytics δείξει σημαντικό ποσοστό μη-κατακόρυφης χρήσης.
-
-## Analytics / measurement
-
-- Βασικό event tracking (π.χ. Cloudflare Web Analytics — privacy-friendly, χωρίς cookies) για:
-  παιχνίδια που ξεκίνησαν, ολοκληρώθηκαν, μέσο σκορ, ποσοστό χρήσης του share button, ποσοστό ανά
-  γλώσσα/δυσκολία. Χρήσιμο για να δείτε αν άξιζε το micro-campaign και τι να βελτιώσετε επόμενη
-  φορά.
 
 ## Accessibility / πολιτισμικά σημεία
 
