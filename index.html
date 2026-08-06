@@ -268,7 +268,11 @@
     font-size:13px;
     letter-spacing:0.5px;
     box-shadow:0 4px 14px rgba(0,0,0,0.35);
+    text-decoration:none;
+    cursor:pointer;
+    transition:transform .12s ease;
   }
+  .onecode-badge:active{ transform:scale(0.95); }
   .onecode-badge .lg-one, .onecode-badge .lg-code{ color:var(--white); }
   .onecode-badge .lg-n{ color:var(--pink); }
   .brand-row{
@@ -491,9 +495,9 @@
     </div>
   </div>
 
-  <div id="corner-badge" class="onecode-badge hidden">
+  <a id="corner-badge" class="onecode-badge hidden" href="https://onecode.gr" target="_blank" rel="noopener noreferrer">
     <span class="lg-one">O</span><span class="lg-n">N</span><span class="lg-code">ECODE</span>
-  </div>
+  </a>
 
   <button id="music-toggle" aria-label="Toggle music">🔊</button>
   <audio id="bg-music" loop preload="auto">
@@ -507,9 +511,9 @@
       <button id="lang-en" data-lang="en">EN</button>
     </div>
     <div class="brand-row">
-      <div class="onecode-badge">
+      <a class="onecode-badge" href="https://onecode.gr" target="_blank" rel="noopener noreferrer">
         <span class="lg-one">O</span><span class="lg-n">N</span><span class="lg-code">ECODE</span>
-      </div>
+      </a>
       <div class="tagline" id="presents-tag">presents</div>
     </div>
     <h1>Beach Bag Blitz</h1>
@@ -545,9 +549,9 @@
   <!-- Game over screen -->
   <div id="end-screen" class="overlay hidden">
     <div class="brand-row">
-      <div class="onecode-badge">
+      <a class="onecode-badge" href="https://onecode.gr" target="_blank" rel="noopener noreferrer">
         <span class="lg-one">O</span><span class="lg-n">N</span><span class="lg-code">ECODE</span>
-      </div>
+      </a>
       <div class="tagline">Καλές διακοπές</div>
     </div>
     <div id="final-tag">Time's up!</div>
@@ -566,9 +570,9 @@
   <!-- Leaderboard overlay -->
   <div id="leaderboard-screen" class="overlay hidden">
     <div class="brand-row">
-      <div class="onecode-badge">
+      <a class="onecode-badge" href="https://onecode.gr" target="_blank" rel="noopener noreferrer">
         <span class="lg-one">O</span><span class="lg-n">N</span><span class="lg-code">ECODE</span>
-      </div>
+      </a>
     </div>
     <h1 id="lb-title">Κατάταξη</h1>
     <div class="lb-tabs">
@@ -1316,16 +1320,32 @@
     }
   }
 
+  let lbReturnScreen = null;
+
   function openLeaderboard(scope){
     lbTabDaily.classList.toggle('active', scope === 'daily');
     lbTabAlltime.classList.toggle('active', scope === 'alltime');
+    // Hide whichever screen is currently showing — overlays share a semi-transparent
+    // background, so leaving one underneath makes the two bleed together visually.
+    if(!startScreen.classList.contains('hidden')) lbReturnScreen = startScreen;
+    else if(!endScreen.classList.contains('hidden')) lbReturnScreen = endScreen;
+    else lbReturnScreen = null;
+    if(lbReturnScreen) lbReturnScreen.classList.add('hidden');
     lbScreen.classList.remove('hidden');
     loadLeaderboard(scope);
   }
 
+  function closeLeaderboard(){
+    lbScreen.classList.add('hidden');
+    if(lbReturnScreen){
+      lbReturnScreen.classList.remove('hidden');
+      lbReturnScreen = null;
+    }
+  }
+
   leaderboardBtn.addEventListener('click', ()=> openLeaderboard('daily'));
   endLeaderboardBtn.addEventListener('click', ()=> openLeaderboard(isDailyRun ? 'daily' : 'alltime'));
-  lbCloseBtn.addEventListener('click', ()=> lbScreen.classList.add('hidden'));
+  lbCloseBtn.addEventListener('click', closeLeaderboard);
   lbTabDaily.addEventListener('click', ()=> openLeaderboard('daily'));
   lbTabAlltime.addEventListener('click', ()=> openLeaderboard('alltime'));
 
