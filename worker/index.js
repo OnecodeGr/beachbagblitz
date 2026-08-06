@@ -3,10 +3,12 @@ const MAX_NAME_LEN = 20;
 const MAX_ID_LEN = 64;
 const MAX_SCORE = 5000; // generous ceiling above any realistic 60s run — blocks obviously spoofed values
 const MAX_STREAK = 3650; // ~10 years — sanity cap, purely cosmetic so no strict anti-cheat needed
-const DAILY_TTL_SECONDS = 60 * 60 * 24 * 30; // keep past daily boards/stats ~30 days, well past the campaign
+const DAILY_TTL_SECONDS = 60 * 60 * 24 * 30; // keep past daily boards/events ~30 days, well past the campaign
 const LINK_PATTERN = /(https?:\/\/|www\.|\.[a-z]{2,6}(\/|\b))/i;
 const EVENT_TYPES = new Set(['game_started', 'game_completed', 'share_used']);
 const DIFFICULTIES = new Set(['easy', 'normal', 'hard']);
+const LIST_PAGE_LIMIT = 1000; // KV max per list() call
+const LIST_MAX_PAGES = 20; // safety bound against a runaway pagination loop
 
 // Campaign runs in Europe/Athens during August (EEST, UTC+3, no DST change expected mid-campaign).
 // Hardcoding the offset keeps "today" aligned with the players' local midnight without pulling in a
@@ -35,8 +37,8 @@ async function handleApi(request, env, url) {
   if (url.pathname === '/api/leaderboard' && request.method === 'GET') {
     const scope = url.searchParams.get('scope') === 'daily' ? 'daily' : 'alltime';
     const date = todayKey();
-    const key = scope === 'daily' ? `daily:${date}` : 'alltime';
-    const entries = await readBoard(env, key);
+    const prefix = scope === 'daily' ? `score:daily:${date}:` : 'score:alltime:';
+    const entries = await listTopScores(env, prefix);
     return json({ scope, date: scope === 'daily' ? date : undefined, entries });
   }
 
@@ -56,12 +58,14 @@ async function handleApi(request, env, url) {
 
     const entry = { id, name, score, streak, ts: Date.now() };
 
-    // Keep each player's best-ever score per board (not last-submitted) — required for
-    // "best of 3" daily attempts, and just generally the right leaderboard semantics.
-    const alltime = await upsertBoard(env, 'alltime', entry, undefined);
+    // Each player owns a distinct KV key (score:<board>:<playerId>) so concurrent submissions from
+    // DIFFERENT players never race on the same key — only a single player's own double-submit could
+    // race, which is low-stakes. The board itself is reconstructed at read time via list()+metadata,
+    // so no shared read-modify-write blob exists to be clobbered by concurrent writers.
+    const alltime = await upsertPlayerScore(env, 'score:alltime:', entry, undefined);
     let daily = null;
     if (mode === 'daily') {
-      daily = await upsertBoard(env, `daily:${todayKey()}`, entry, DAILY_TTL_SECONDS);
+      daily = await upsertPlayerScore(env, `score:daily:${todayKey()}:`, entry, DAILY_TTL_SECONDS);
     }
     return json({ ok: true, alltime, daily });
   }
@@ -79,13 +83,19 @@ async function handleApi(request, env, url) {
     const scoreNum = Number(body.score);
     const score = Number.isFinite(scoreNum) ? Math.max(0, Math.min(MAX_SCORE, Math.floor(scoreNum))) : null;
 
-    await recordEvent(env, type, { lang, difficulty, mode, score });
+    // Each event gets its own unique key — a blind, uncontested write, no read-modify-write at all.
+    const date = todayKey();
+    const id = crypto.randomUUID();
+    await env.LEADERBOARD.put(`event:${date}:${id}`, '', {
+      metadata: { type, lang, difficulty, mode, score },
+      expirationTtl: DAILY_TTL_SECONDS
+    });
     return json({ ok: true });
   }
 
   if (url.pathname === '/api/stats' && request.method === 'GET') {
     const date = url.searchParams.get('date') || todayKey();
-    const stats = await readStats(env, date);
+    const stats = await computeStats(env, date);
     return json({ date, stats });
   }
 
@@ -105,35 +115,43 @@ function sanitizeName(raw) {
   return name;
 }
 
-async function readBoard(env, key) {
-  const raw = await env.LEADERBOARD.get(key);
-  if (!raw) return [];
-  try {
-    const parsed = JSON.parse(raw);
-    return Array.isArray(parsed) ? parsed : [];
-  } catch (e) {
-    return [];
+async function listAllKeys(env, prefix) {
+  const keys = [];
+  let cursor;
+  for (let page = 0; page < LIST_MAX_PAGES; page++) {
+    const res = await env.LEADERBOARD.list({ prefix, cursor, limit: LIST_PAGE_LIMIT });
+    keys.push(...res.keys);
+    if (res.list_complete || !res.cursor) break;
+    cursor = res.cursor;
   }
+  return keys;
 }
 
-async function upsertBoard(env, key, entry, ttlSeconds) {
-  const current = await readBoard(env, key);
-  const idx = current.findIndex(e => e.id === entry.id);
-  let changed = false;
-  if (idx === -1) {
-    current.push(entry);
-    changed = true;
-  } else if (entry.score > current[idx].score) {
-    current[idx] = entry;
-    changed = true;
+async function listTopScores(env, prefix) {
+  const keys = await listAllKeys(env, prefix);
+  const entries = keys
+    .filter(k => k.metadata && typeof k.metadata.score === 'number')
+    .map(k => ({
+      id: k.name.slice(prefix.length),
+      name: k.metadata.name,
+      score: k.metadata.score,
+      streak: k.metadata.streak || 0,
+      ts: k.metadata.ts || 0
+    }));
+  entries.sort((a, b) => b.score - a.score);
+  return entries.slice(0, MAX_ENTRIES);
+}
+
+async function upsertPlayerScore(env, prefix, entry, ttlSeconds) {
+  const key = prefix + entry.id;
+  const existing = await env.LEADERBOARD.getWithMetadata(key);
+  const prevScore = existing && existing.metadata ? existing.metadata.score : -1;
+  if (entry.score > prevScore) {
+    const opts = { metadata: { name: entry.name, score: entry.score, streak: entry.streak, ts: entry.ts } };
+    if (ttlSeconds) opts.expirationTtl = ttlSeconds;
+    await env.LEADERBOARD.put(key, '', opts);
   }
-  current.sort((a, b) => b.score - a.score);
-  const top = current.slice(0, MAX_ENTRIES);
-  if (changed) {
-    const opts = ttlSeconds ? { expirationTtl: ttlSeconds } : undefined;
-    await env.LEADERBOARD.put(key, JSON.stringify(top), opts);
-  }
-  return top;
+  return listTopScores(env, prefix);
 }
 
 function emptyStats() {
@@ -148,40 +166,25 @@ function emptyStats() {
   };
 }
 
-async function readStats(env, date) {
-  const raw = await env.LEADERBOARD.get(`stats:${date}`);
-  const base = emptyStats();
-  if (!raw) return base;
-  try {
-    const parsed = JSON.parse(raw);
-    return {
-      ...base,
-      ...parsed,
-      byLang: { ...base.byLang, ...(parsed.byLang || {}) },
-      byDifficulty: { ...base.byDifficulty, ...(parsed.byDifficulty || {}) }
-    };
-  } catch (e) {
-    return base;
+async function computeStats(env, date) {
+  const stats = emptyStats();
+  const keys = await listAllKeys(env, `event:${date}:`);
+  for (const key of keys) {
+    const m = key.metadata;
+    if (!m) continue;
+    if (m.type === 'game_started') {
+      stats.gamesStarted += 1;
+      if (m.lang) stats.byLang[m.lang] = (stats.byLang[m.lang] || 0) + 1;
+      if (m.difficulty) stats.byDifficulty[m.difficulty] = (stats.byDifficulty[m.difficulty] || 0) + 1;
+      if (m.mode === 'daily') stats.dailyChallengePlays += 1;
+    } else if (m.type === 'game_completed') {
+      stats.gamesCompleted += 1;
+      if (typeof m.score === 'number') stats.totalScore += m.score;
+    } else if (m.type === 'share_used') {
+      stats.shareUsed += 1;
+    }
   }
-}
-
-async function recordEvent(env, type, meta) {
-  const date = todayKey();
-  const stats = await readStats(env, date);
-
-  if (type === 'game_started') {
-    stats.gamesStarted += 1;
-    stats.byLang[meta.lang] = (stats.byLang[meta.lang] || 0) + 1;
-    if (meta.difficulty) stats.byDifficulty[meta.difficulty] = (stats.byDifficulty[meta.difficulty] || 0) + 1;
-    if (meta.mode === 'daily') stats.dailyChallengePlays += 1;
-  } else if (type === 'game_completed') {
-    stats.gamesCompleted += 1;
-    if (meta.score != null) stats.totalScore += meta.score;
-  } else if (type === 'share_used') {
-    stats.shareUsed += 1;
-  }
-
-  await env.LEADERBOARD.put(`stats:${date}`, JSON.stringify(stats), { expirationTtl: DAILY_TTL_SECONDS });
+  return stats;
 }
 
 function corsHeaders() {

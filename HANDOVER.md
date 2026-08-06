@@ -154,9 +154,17 @@ cookieless endpoint πάνω στο ίδιο Worker/KV:
 - Η ζώνη ώρας του daily challenge/leaderboard είναι **hardcoded UTC+3** (Europe/Athens,
   καλοκαίρι) και στον Worker (`worker/index.js`) και στο frontend — σωστό για τη διάρκεια του
   campaign, αλλά θα χρειαστεί χειροκίνητη αλλαγή αν το campaign συνεχίσει μετά την αλλαγή ώρας.
-- Το KV read-modify-write στο `/api/score` (`upsertBoard`) δεν είναι ατομικό (atomic) — σε σπάνιο
-  race condition με ταυτόχρονα submissions θα μπορούσε ένα score να "χαθεί". Αμελητέο ρίσκο στην
-  αναμενόμενη κλίμακα κίνησης ενός 2-εβδομάδων microsite, αλλά αξίζει να το ξέρεις αν
-  μεγαλώσει σημαντικά η κίνηση.
+- **[FIXED]** Το leaderboard αρχικά αποθήκευε κάθε board σαν ένα ενιαίο JSON blob σε ένα κοινό KV
+  key (`daily:{date}`, `alltime`) — read-modify-write πάνω στο ίδιο key. Real-world συμπτωμα: μέρα
+  με αρκετούς ταυτόχρονους παίκτες, το "Σήμερα" leaderboard έδειχνε μόνο 1 εγγραφή αντί για όλους
+  όσους έπαιξαν (τα ταυτόχρονα submissions πάτησαν το ένα πάνω στο άλλο, το Cloudflare KV δεν έχει
+  compare-and-swap). **Fix**: κάθε παίκτης γράφει πλέον σε δικό του, ξεχωριστό KV key
+  (`score:daily:{date}:{playerId}`, `score:alltime:{playerId}`) με το score/name/streak σαν KV
+  *metadata* — μηδενικό race μεταξύ διαφορετικών παικτών, αφού δεν μοιράζονται key. Το board
+  υπολογίζεται on-the-fly στο GET μέσω `LEADERBOARD.list({prefix})` (με pagination αν χρειαστεί).
+  Το ίδιο fix εφαρμόστηκε και στο `/api/event`/`/api/stats` (κάθε event γράφεται σε δικό του
+  μοναδικό key, μηδέν read-modify-write). **Side effect του fix**: επειδή άλλαξε το KV key schema,
+  τα παλιά keys (`daily:*`, `alltime`, `stats:*`) εγκαταλείπονται — το leaderboard "μηδενίζεται"
+  μετά το επόμενο deploy (ό,τι είχε ήδη χαθεί λόγω του bug έτσι κι αλλιώς δεν ήταν αξιόπιστο).
 - Score cap 5000 στο API (`MAX_SCORE`) σαν βασικός anti-spoofing έλεγχος — όχι πλήρες anti-cheat
   σύστημα, απλά μπλοκάρει προφανώς πλασματικά νούμερα.
