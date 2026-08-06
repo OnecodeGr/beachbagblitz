@@ -1,0 +1,7 @@
+worker/
+wrangler.toml
+*.md
+LICENSE
+.git/
+.wrangler/
+node_modules/

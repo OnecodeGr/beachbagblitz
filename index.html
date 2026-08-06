@@ -337,6 +337,94 @@
     0%{ transform:translate(0,0) rotate(0deg) scale(1); opacity:1; }
     100%{ transform:translate(var(--dx),var(--dy)) rotate(var(--rot)) scale(0.4); opacity:0; }
   }
+
+  .name-field{
+    display:flex; flex-direction:column; align-items:center; gap:6px;
+    margin-bottom:18px; width:100%;
+  }
+  .name-field label{
+    font-family:'Fredoka',sans-serif; font-size:12px; font-weight:600;
+    color:rgba(255,255,255,0.55); letter-spacing:1px; text-transform:uppercase;
+    transition:color .15s ease;
+  }
+  .name-field label.name-error{ color:var(--pink-soft); }
+  .name-field input{
+    font-family:'Poppins',sans-serif; font-size:15px; font-weight:500;
+    text-align:center;
+    width:100%; max-width:260px;
+    padding:10px 16px;
+    border-radius:999px;
+    background:rgba(255,255,255,0.06);
+    border:2px solid rgba(255,255,255,0.15);
+    color:var(--white);
+    outline:none;
+  }
+  .name-field input:focus{ border-color:var(--pink-soft); }
+
+  .mode-row{
+    display:flex; flex-direction:column; align-items:center; gap:10px;
+    margin-bottom:6px;
+  }
+  #daily-status{
+    font-family:'Fredoka',sans-serif; font-size:12px;
+    color:rgba(255,255,255,0.55);
+    margin:10px 0 4px;
+    display:flex; flex-direction:column; align-items:center; gap:4px;
+  }
+  #end-daily-status{
+    font-family:'Fredoka',sans-serif; font-size:12px;
+    color:rgba(255,255,255,0.55);
+    margin-bottom:12px;
+    display:flex; flex-direction:column; align-items:center; gap:4px;
+  }
+  .streak-badge{
+    font-family:'Fredoka',sans-serif; font-size:13px; font-weight:600;
+    color:var(--sand);
+  }
+  #rank-note{
+    font-family:'Fredoka',sans-serif; font-size:13px; font-weight:600;
+    color:var(--pink-soft);
+    margin-bottom:8px;
+    min-height:16px;
+  }
+
+  /* leaderboard overlay */
+  .lb-tabs{
+    display:flex; background:rgba(255,255,255,0.06);
+    border:1px solid rgba(255,255,255,0.15);
+    border-radius:999px; overflow:hidden; margin-bottom:18px;
+  }
+  .lb-tab{
+    font-family:'Fredoka',sans-serif; font-size:13px; font-weight:600;
+    border:none; background:transparent; color:rgba(255,255,255,0.55);
+    padding:9px 18px; cursor:pointer;
+  }
+  .lb-tab.active{
+    background:linear-gradient(90deg, var(--pink), var(--purple));
+    color:white;
+  }
+  .lb-list{
+    width:100%; max-width:340px;
+    display:flex; flex-direction:column; gap:6px;
+    margin-bottom:22px;
+    max-height:38vh; overflow-y:auto;
+  }
+  .lb-row{
+    display:flex; align-items:center; gap:10px;
+    background:rgba(255,255,255,0.05);
+    border:1px solid rgba(255,255,255,0.1);
+    border-radius:12px;
+    padding:8px 14px;
+    font-family:'Poppins',sans-serif; font-size:14px;
+  }
+  .lb-row-me{ border-color:var(--pink-soft); background:rgba(236,31,110,0.14); }
+  .lb-rank{ font-family:'Fredoka',sans-serif; font-weight:700; color:var(--purple-soft); width:28px; }
+  .lb-name{ flex:1; text-align:left; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .lb-score{ font-family:'Fredoka',sans-serif; font-weight:700; color:var(--sand); }
+  .lb-empty{
+    font-size:13px; color:rgba(255,255,255,0.5);
+    padding:20px 0;
+  }
 </style>
 </head>
 <body>
@@ -402,6 +490,10 @@
       <div><span>⛱️🦩⭐🐚</span><span id="legend-beach">Παραλία</span></div>
       <div><span>🕶️🩴💄</span><span id="legend-style">Στυλ</span></div>
     </div>
+    <div class="name-field">
+      <label for="player-name" id="name-label">Το όνομά σου</label>
+      <input type="text" id="player-name" maxlength="20" autocomplete="off">
+    </div>
     <div class="diff-label" id="gender-label">Ποιος παίζει;</div>
     <div class="diff-row">
       <button class="diff-btn gender-btn active" id="gender-female" data-gender="female">👙</button>
@@ -413,7 +505,12 @@
       <button class="diff-btn active" id="diff-normal" data-diff="normal">Κανονικό</button>
       <button class="diff-btn" id="diff-hard" data-diff="hard">Δύσκολο</button>
     </div>
-    <button class="primary" id="start-btn">Παίξε τώρα</button>
+    <div class="mode-row">
+      <button class="primary" id="start-btn">Παίξε τώρα</button>
+      <button class="secondary" id="daily-btn">📅 <span id="daily-btn-label">Daily Challenge</span></button>
+      <button class="secondary" id="leaderboard-btn">🏆 <span id="leaderboard-btn-label">Κατάταξη</span></button>
+    </div>
+    <div id="daily-status"></div>
   </div>
 
   <!-- Game over screen -->
@@ -426,12 +523,31 @@
     </div>
     <div id="final-tag">Time's up!</div>
     <div id="final-score">0</div>
+    <div id="rank-note"></div>
     <p id="end-message">You packed the beach bags like a pro.</p>
+    <div id="end-daily-status"></div>
     <div class="end-actions">
       <button class="primary" id="retry-btn">Παίξε ξανά</button>
       <button class="secondary" id="share-btn">📤 <span id="share-label">Μοιράσου το</span></button>
+      <button class="secondary" id="end-leaderboard-btn">🏆 <span id="end-leaderboard-label">Κατάταξη</span></button>
     </div>
     <div id="share-toast">Αντιγράφηκε!</div>
+  </div>
+
+  <!-- Leaderboard overlay -->
+  <div id="leaderboard-screen" class="overlay hidden">
+    <div class="brand-row">
+      <div class="onecode-badge">
+        <span class="lg-one">O</span><span class="lg-n">N</span><span class="lg-code">ECODE</span>
+      </div>
+    </div>
+    <h1 id="lb-title">Κατάταξη</h1>
+    <div class="lb-tabs">
+      <button class="lb-tab active" id="lb-tab-daily" data-scope="daily">Σήμερα</button>
+      <button class="lb-tab" id="lb-tab-alltime" data-scope="alltime">Όλων των εποχών</button>
+    </div>
+    <div class="lb-list" id="lb-list"></div>
+    <button class="primary" id="lb-close-btn">Κλείσιμο</button>
   </div>
 </div>
 
@@ -474,6 +590,23 @@
   const lblStyle = document.getElementById('lbl-style');
   const langButtons = Array.from(document.querySelectorAll('#lang-toggle button'));
   const diffButtons = Array.from(document.querySelectorAll('[data-diff]'));
+  const playerNameInput = document.getElementById('player-name');
+  const nameLabelEl = document.getElementById('name-label');
+  const dailyBtn = document.getElementById('daily-btn');
+  const dailyBtnLabelEl = document.getElementById('daily-btn-label');
+  const dailyStatusEl = document.getElementById('daily-status');
+  const endDailyStatusEl = document.getElementById('end-daily-status');
+  const rankNoteEl = document.getElementById('rank-note');
+  const leaderboardBtn = document.getElementById('leaderboard-btn');
+  const leaderboardBtnLabelEl = document.getElementById('leaderboard-btn-label');
+  const endLeaderboardBtn = document.getElementById('end-leaderboard-btn');
+  const endLeaderboardLabelEl = document.getElementById('end-leaderboard-label');
+  const lbScreen = document.getElementById('leaderboard-screen');
+  const lbTitleEl = document.getElementById('lb-title');
+  const lbTabDaily = document.getElementById('lb-tab-daily');
+  const lbTabAlltime = document.getElementById('lb-tab-alltime');
+  const lbListEl = document.getElementById('lb-list');
+  const lbCloseBtn = document.getElementById('lb-close-btn');
 
   const TEXT = {
     gr: {
@@ -491,7 +624,17 @@
       msgMid: 'Ωραία σερί — οι παραλιακές τσάντες είναι περήφανες.',
       msgLow: 'Καλή προθέρμανση. Το φλαμίνγκο πιστεύει σε σένα.',
       shareLabel: 'Μοιράσου το', shareText: score => `Μάζεψα ${score} πόντους στο Beach Bag Blitz της onecode! 🏖️ Παίξε κι εσύ:`,
-      copied: 'Αντιγράφηκε στο πρόχειρο!'
+      copied: 'Αντιγράφηκε στο πρόχειρο!',
+      nameLabel: 'Το όνομά σου', invalidName: 'Δώσε ένα όνομα χωρίς links.',
+      dailyBtn: 'Daily Challenge',
+      dailyReady: 'Ίδια πρόκληση για όλους σήμερα — 1 προσπάθεια.',
+      dailyDone: ms => `Ξαναέλα σε ${formatCountdown(ms)} για τη νέα πρόκληση.`,
+      streak: n => `🔥 Σερί ${n} ${n === 1 ? 'μέρα' : 'μέρες'}`,
+      leaderboardBtn: 'Κατάταξη',
+      lbTitle: 'Κατάταξη', lbToday: 'Σήμερα', lbAllTime: 'Όλων των εποχών', lbClose: 'Κλείσιμο',
+      lbEmpty: 'Κανένα σκορ ακόμα — γίνε ο πρώτος!', lbLoading: 'Φόρτωση…',
+      lbError: 'Η κατάταξη δεν είναι διαθέσιμη αυτή τη στιγμή.',
+      rankTopDaily: 'Μπήκες στο σημερινό Top 10! 🏆', rankTopAlltime: 'Μπήκες στο Top 10 όλων των εποχών! 🏆'
     },
     en: {
       instructions: 'Drag every falling item into the right bag before it lands in the sand. Chain catches for combo multipliers. 60 seconds. Go!',
@@ -508,7 +651,17 @@
       msgMid: 'Nice streaks — the beach bags are proud.',
       msgLow: 'A solid warm-up. The flamingo believes in you.',
       shareLabel: 'Share it', shareText: score => `I scored ${score} points in onecode's Beach Bag Blitz! 🏖️ Try to beat it:`,
-      copied: 'Copied to clipboard!'
+      copied: 'Copied to clipboard!',
+      nameLabel: 'Your name', invalidName: 'Please enter a name without links.',
+      dailyBtn: 'Daily Challenge',
+      dailyReady: 'Same challenge for everyone today — 1 attempt.',
+      dailyDone: ms => `Come back in ${formatCountdown(ms)} for the next challenge.`,
+      streak: n => `🔥 ${n} day streak`,
+      leaderboardBtn: 'Leaderboard',
+      lbTitle: 'Leaderboard', lbToday: 'Today', lbAllTime: 'All-time', lbClose: 'Close',
+      lbEmpty: 'No scores yet — be the first!', lbLoading: 'Loading…',
+      lbError: 'Leaderboard is unavailable right now.',
+      rankTopDaily: "You made today's Top 10! 🏆", rankTopAlltime: 'You made the all-time Top 10! 🏆'
     }
   };
 
@@ -532,7 +685,16 @@
     startBtn.textContent = t.startBtn;
     retryBtn.textContent = t.retryBtn;
     shareLabel.textContent = t.shareLabel;
+    nameLabelEl.textContent = nameLabelEl.classList.contains('name-error') ? t.invalidName : t.nameLabel;
+    dailyBtnLabelEl.textContent = t.dailyBtn;
+    leaderboardBtnLabelEl.textContent = t.leaderboardBtn;
+    endLeaderboardLabelEl.textContent = t.leaderboardBtn;
+    lbTitleEl.textContent = t.lbTitle;
+    lbTabDaily.textContent = t.lbToday;
+    lbTabAlltime.textContent = t.lbAllTime;
+    lbCloseBtn.textContent = t.lbClose;
     langButtons.forEach(b => b.classList.toggle('active', b.dataset.lang === lang));
+    renderDailyStatus();
   }
 
   langButtons.forEach(btn=>{
@@ -542,14 +704,13 @@
     });
   });
 
-  applyLang();
-
   const DIFFICULTIES = {
     easy:   { minStart:11.5, maxStart:16.0, minFloor:8.5, maxFloor:11.5, rampMin:0.014, rampMax:0.018 },
     normal: { minStart:6.5, maxStart:9.5,  minFloor:3.5, maxFloor:5.0, rampMin:0.038, rampMax:0.050 },
     hard:   { minStart:5.5, maxStart:8.5,  minFloor:2.8, maxFloor:4.2, rampMin:0.045, rampMax:0.060 }
   };
   let difficulty = 'normal';
+  let preDailyDifficulty = null;
   let gender = 'female';
 
   genderButtons.forEach(btn=>{
@@ -565,6 +726,146 @@
       diffButtons.forEach(b=>b.classList.toggle('active', b === btn));
     });
   });
+
+  // --- player identity (name + persistent id for the leaderboard) ---
+  const COLOR_WORDS = ['Sunny','Coral','Purple','Turquoise','Golden','Salty','Mango','Neon','Electric','Tropical','Cosmic','Velvet'];
+  const ANIMAL_WORDS = ['Flamingo','Dolphin','Turtle','Crab','Pelican','Otter','Seahorse','Parrot','Koala','Penguin','Jellyfish','Starfish'];
+  const LINK_PATTERN = /(https?:\/\/|www\.|\.[a-z]{2,6}(\/|\b))/i;
+
+  function randomSuggestedName(){
+    const c = COLOR_WORDS[Math.floor(Math.random()*COLOR_WORDS.length)];
+    const a = ANIMAL_WORDS[Math.floor(Math.random()*ANIMAL_WORDS.length)];
+    const n = Math.floor(Math.random()*90) + 10;
+    return c + a + n;
+  }
+
+  function sanitizeName(raw){
+    return (raw || '').trim().slice(0, 20).replace(/[<>]/g, '');
+  }
+
+  function isValidName(name){
+    return name.length > 0 && !LINK_PATTERN.test(name);
+  }
+
+  function getPlayerId(){
+    let id = localStorage.getItem('bbb_playerId');
+    if(!id){
+      id = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : ('p-' + Date.now() + '-' + Math.random().toString(36).slice(2));
+      localStorage.setItem('bbb_playerId', id);
+    }
+    return id;
+  }
+
+  const playerId = getPlayerId();
+  const suggestedName = randomSuggestedName();
+  let playerName = localStorage.getItem('bbb_playerName') || '';
+
+  function refreshNameField(){
+    playerNameInput.value = playerName;
+    playerNameInput.placeholder = suggestedName;
+  }
+
+  function commitPlayerName(){
+    const raw = playerNameInput.value.trim();
+    const name = sanitizeName(raw) || suggestedName;
+    if(!isValidName(name)){
+      nameLabelEl.classList.add('name-error');
+      nameLabelEl.textContent = TEXT[lang].invalidName;
+      return null;
+    }
+    nameLabelEl.classList.remove('name-error');
+    nameLabelEl.textContent = TEXT[lang].nameLabel;
+    playerName = name;
+    localStorage.setItem('bbb_playerName', playerName);
+    return playerName;
+  }
+
+  // --- seeded RNG for the Daily Challenge (identical item sequence for every player, every day) ---
+  function hashSeed(str){
+    let h = 1779033703 ^ str.length;
+    for(let i=0; i<str.length; i++){
+      h = Math.imul(h ^ str.charCodeAt(i), 3432918353);
+      h = (h << 13) | (h >>> 19);
+    }
+    return (h ^ (h >>> 16)) >>> 0;
+  }
+  function mulberry32(seed){
+    return function(){
+      seed |= 0; seed = (seed + 0x6D2B79F5) | 0;
+      let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+      t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+  }
+
+  // Campaign runs in Europe/Athens during August (EEST, UTC+3, no DST change expected mid-campaign) —
+  // hardcoding the offset keeps "today" aligned with the players' local midnight without a timezone library.
+  const ATHENS_OFFSET_MS = 3 * 60 * 60 * 1000;
+  function athensNow(){ return new Date(Date.now() + ATHENS_OFFSET_MS); }
+  function todayKey(){ return athensNow().toISOString().slice(0, 10); }
+
+  let rng = Math.random;
+  let isDailyRun = false;
+
+  // --- daily challenge: same seed for everyone, one attempt per local day, streak tracking ---
+  function formatCountdown(ms){
+    const totalMin = Math.max(0, Math.ceil(ms / 60000));
+    const h = Math.floor(totalMin / 60);
+    const m = totalMin % 60;
+    return h > 0 ? `${h}h ${m}m` : `${m}m`;
+  }
+
+  function msUntilNextLocalMidnight(){
+    const now = athensNow();
+    const next = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()+1, 0, 0, 0));
+    return next.getTime() - now.getTime();
+  }
+
+  function yesterdayKey(){
+    const d = athensNow();
+    d.setUTCDate(d.getUTCDate() - 1);
+    return d.toISOString().slice(0, 10);
+  }
+
+  function getStreak(){
+    return parseInt(localStorage.getItem('bbb_streak') || '0', 10);
+  }
+
+  function recordDailyPlayed(){
+    const today = todayKey();
+    const lastStreakDate = localStorage.getItem('bbb_streakLastDate');
+    let streak = getStreak();
+    if(lastStreakDate === yesterdayKey()) streak += 1;
+    else if(lastStreakDate !== today) streak = 1;
+    localStorage.setItem('bbb_dailyLastPlayed', today);
+    localStorage.setItem('bbb_streak', String(streak));
+    localStorage.setItem('bbb_streakLastDate', today);
+    return streak;
+  }
+
+  function hasPlayedDailyToday(){
+    return localStorage.getItem('bbb_dailyLastPlayed') === todayKey();
+  }
+
+  function streakBadgeHtml(){
+    const streak = getStreak();
+    return streak > 1 ? `<div class="streak-badge">${TEXT[lang].streak(streak)}</div>` : '';
+  }
+
+  function renderDailyStatus(){
+    const t = TEXT[lang];
+    if(hasPlayedDailyToday()){
+      dailyBtn.disabled = true;
+      dailyStatusEl.innerHTML = streakBadgeHtml() + `<div>${t.dailyDone(msUntilNextLocalMidnight())}</div>`;
+    } else {
+      dailyBtn.disabled = false;
+      dailyStatusEl.innerHTML = streakBadgeHtml() + `<div>${t.dailyReady}</div>`;
+    }
+  }
+
+  refreshNameField();
+  applyLang();
+  setInterval(renderDailyStatus, 60000);
 
   const ITEMS = [
     {icon:'💻', cat:'tech'}, {icon:'🎧', cat:'tech'}, {icon:'📱', cat:'tech'}, {icon:'⌨️', cat:'tech'},
@@ -722,24 +1023,24 @@
   function scheduleSpawn(){
     if(!running) return;
     spawnItem();
-    const delay = 850 + Math.random()*550;
+    const delay = 850 + rng()*550;
     spawnTimer = setTimeout(scheduleSpawn, delay);
   }
 
   function spawnItem(){
     if(!running) return;
     measure();
-    const def = ITEMS[Math.floor(Math.random()*ITEMS.length)];
+    const def = ITEMS[Math.floor(rng()*ITEMS.length)];
     const el = document.createElement('div');
     el.className = 'item';
     el.textContent = def.icon;
     const maxX = game.clientWidth - 56;
-    const startX = 20 + Math.random()*(maxX-40);
+    const startX = 20 + rng()*(maxX-40);
     el.style.left = startX + 'px';
     el.style.top = '-60px';
     game.appendChild(el);
 
-    const duration = fallSpeedMin + Math.random()*(fallSpeedMax-fallSpeedMin);
+    const duration = fallSpeedMin + rng()*(fallSpeedMax-fallSpeedMin);
     const obj = {el, cat:def.cat, x:startX, y:-60, fromY:-60, startTime:performance.now(), duration:duration*1000, dragging:false, dead:false};
     activeItems.push(obj);
     attachDrag(obj);
@@ -886,6 +1187,71 @@
   }
   requestAnimationFrame(gameLoop);
 
+  // --- leaderboard ---
+  function escapeHtml(str){
+    return String(str).replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+  }
+
+  function renderLbRows(entries){
+    const t = TEXT[lang];
+    if(!entries || entries.length === 0){
+      lbListEl.innerHTML = `<div class="lb-empty">${t.lbEmpty}</div>`;
+      return;
+    }
+    lbListEl.innerHTML = entries.map((e, i) => `
+      <div class="lb-row${e.id === playerId ? ' lb-row-me' : ''}">
+        <span class="lb-rank">#${i+1}</span>
+        <span class="lb-name">${escapeHtml(e.name)}</span>
+        <span class="lb-score">${e.score}</span>
+      </div>
+    `).join('');
+  }
+
+  async function loadLeaderboard(scope){
+    lbListEl.innerHTML = `<div class="lb-empty">${TEXT[lang].lbLoading}</div>`;
+    try{
+      const res = await fetch('/api/leaderboard?scope=' + scope);
+      if(!res.ok) throw new Error('bad status');
+      const data = await res.json();
+      renderLbRows(data.entries);
+    } catch(err){
+      lbListEl.innerHTML = `<div class="lb-empty">${TEXT[lang].lbError}</div>`;
+    }
+  }
+
+  function openLeaderboard(scope){
+    lbTabDaily.classList.toggle('active', scope === 'daily');
+    lbTabAlltime.classList.toggle('active', scope === 'alltime');
+    lbScreen.classList.remove('hidden');
+    loadLeaderboard(scope);
+  }
+
+  leaderboardBtn.addEventListener('click', ()=> openLeaderboard('daily'));
+  endLeaderboardBtn.addEventListener('click', ()=> openLeaderboard(isDailyRun ? 'daily' : 'alltime'));
+  lbCloseBtn.addEventListener('click', ()=> lbScreen.classList.add('hidden'));
+  lbTabDaily.addEventListener('click', ()=> openLeaderboard('daily'));
+  lbTabAlltime.addEventListener('click', ()=> openLeaderboard('alltime'));
+
+  async function submitScore(finalScore){
+    rankNoteEl.textContent = '';
+    try{
+      const res = await fetch('/api/score', {
+        method: 'POST',
+        headers: {'content-type':'application/json'},
+        body: JSON.stringify({ id: playerId, name: playerName, score: finalScore, mode: isDailyRun ? 'daily' : 'free' })
+      });
+      if(!res.ok) return;
+      const data = await res.json();
+      const t = TEXT[lang];
+      const madeDaily = isDailyRun && data.daily && data.daily.some(e => e.id === playerId);
+      const madeAlltime = data.alltime && data.alltime.some(e => e.id === playerId);
+      if(madeDaily) rankNoteEl.textContent = t.rankTopDaily;
+      else if(madeAlltime) rankNoteEl.textContent = t.rankTopAlltime;
+    } catch(err){
+      // offline or not deployed yet — local play still works fine
+    }
+  }
+
   function endGame(reason){
     if(!running) return;
     running = false;
@@ -906,41 +1272,142 @@
     finalScoreEl.textContent = score;
     const t = TEXT[lang];
     endMessage.textContent = score >= 400 ? (gender === 'male' ? t.msgHighM : t.msgHighF) : score >= 200 ? t.msgMid : t.msgLow;
+    endDailyStatusEl.innerHTML = isDailyRun ? streakBadgeHtml() + `<div>${t.dailyDone(msUntilNextLocalMidnight())}</div>` : '';
     endScreen.classList.remove('hidden');
+    submitScore(score);
+    renderDailyStatus();
+
+    if(isDailyRun && preDailyDifficulty){
+      difficulty = preDailyDifficulty;
+      diffButtons.forEach(b => b.classList.toggle('active', b.dataset.diff === difficulty));
+      preDailyDifficulty = null;
+    }
   }
 
-  startBtn.addEventListener('click', startGame);
-  retryBtn.addEventListener('click', startGame);
+  function beginFreePlay(){
+    if(!commitPlayerName()) return;
+    isDailyRun = false;
+    rng = Math.random;
+    startGame();
+  }
+
+  function beginDailyChallenge(){
+    if(hasPlayedDailyToday()) return;
+    if(!commitPlayerName()) return;
+    isDailyRun = true;
+    rng = mulberry32(hashSeed('bbb-daily-' + todayKey()));
+    preDailyDifficulty = difficulty;
+    difficulty = 'normal';
+    diffButtons.forEach(b => b.classList.toggle('active', b.dataset.diff === 'normal'));
+    recordDailyPlayed();
+    renderDailyStatus();
+    startGame();
+  }
+
+  startBtn.addEventListener('click', beginFreePlay);
+  dailyBtn.addEventListener('click', beginDailyChallenge);
+  retryBtn.addEventListener('click', beginFreePlay);
   window.addEventListener('resize', measure);
 
-  shareBtn.addEventListener('click', async ()=>{
-    const t = TEXT[lang];
-    const shareData = {
-      title: 'Beach Bag Blitz',
-      text: t.shareText(score),
-      url: window.location.href
-    };
-    if(navigator.share){
-      try{ await navigator.share(shareData); }
-      catch(err){ /* user cancelled — no-op */ }
-    } else {
-      const fallbackText = shareData.text + ' ' + shareData.url;
-      try{
-        await navigator.clipboard.writeText(fallbackText);
-      } catch(err){
-        // clipboard unavailable — select-and-copy fallback
-        const ta = document.createElement('textarea');
-        ta.value = fallbackText;
-        ta.style.position = 'fixed'; ta.style.opacity = '0';
-        document.body.appendChild(ta);
-        ta.select();
-        try{ document.execCommand('copy'); } catch(e2){}
-        document.body.removeChild(ta);
-      }
-      shareToast.textContent = t.copied;
-      shareToast.classList.add('show');
-      setTimeout(()=> shareToast.classList.remove('show'), 2200);
+  // --- branded screenshot share (canvas → Web Share API files, with a download fallback) ---
+  function buildShareCanvas(finalScore, name){
+    const canvas = document.createElement('canvas');
+    canvas.width = 1080;
+    canvas.height = 1920;
+    const ctx = canvas.getContext('2d');
+
+    const bg = ctx.createRadialGradient(540, 620, 120, 540, 1100, 1500);
+    bg.addColorStop(0, '#170a26');
+    bg.addColorStop(1, '#0d0716');
+    ctx.fillStyle = bg;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+    ctx.textAlign = 'center';
+
+    ctx.font = '170px sans-serif';
+    ctx.fillText('🏖️', 540, 430);
+
+    ctx.font = 'bold 44px Poppins, sans-serif';
+    ctx.fillStyle = '#f7f2ff';
+    ctx.fillText('ONECODE', 540, 560);
+    ctx.font = '28px Poppins, sans-serif';
+    ctx.fillStyle = 'rgba(255,255,255,0.55)';
+    ctx.fillText(TEXT[lang].presents.toUpperCase(), 540, 604);
+
+    const titleGrad = ctx.createLinearGradient(240, 0, 840, 0);
+    titleGrad.addColorStop(0, '#ff5fa0');
+    titleGrad.addColorStop(1, '#a78bfa');
+    ctx.font = 'bold 66px Fredoka, sans-serif';
+    ctx.fillStyle = titleGrad;
+    ctx.fillText('Beach Bag Blitz', 540, 700);
+
+    ctx.font = 'bold 230px Fredoka, sans-serif';
+    ctx.fillStyle = '#ffe9c7';
+    ctx.fillText(String(finalScore), 540, 1000);
+
+    ctx.font = '40px Poppins, sans-serif';
+    ctx.fillStyle = 'rgba(255,255,255,0.7)';
+    ctx.fillText(lang === 'gr' ? 'πόντοι' : 'points', 540, 1060);
+
+    ctx.font = 'bold 42px Fredoka, sans-serif';
+    ctx.fillStyle = '#ff5fa0';
+    ctx.fillText(escapeCanvasText(name), 540, 1150);
+
+    ctx.font = '30px Poppins, sans-serif';
+    ctx.fillStyle = 'rgba(255,255,255,0.5)';
+    ctx.fillText(location.hostname || 'onecode', 540, 1800);
+
+    return canvas;
+  }
+
+  function escapeCanvasText(str){
+    return String(str).slice(0, 20);
+  }
+
+  async function copyShareTextFallback(t){
+    const fallbackText = t.shareText(score) + ' ' + window.location.href;
+    try{
+      await navigator.clipboard.writeText(fallbackText);
+    } catch(err){
+      const ta = document.createElement('textarea');
+      ta.value = fallbackText;
+      ta.style.position = 'fixed'; ta.style.opacity = '0';
+      document.body.appendChild(ta);
+      ta.select();
+      try{ document.execCommand('copy'); } catch(e2){}
+      document.body.removeChild(ta);
     }
+    shareToast.textContent = t.copied;
+    shareToast.classList.add('show');
+    setTimeout(()=> shareToast.classList.remove('show'), 2200);
+  }
+
+  function downloadShareImage(blob){
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'beach-bag-blitz-score.png';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(()=> URL.revokeObjectURL(url), 4000);
+  }
+
+  shareBtn.addEventListener('click', ()=>{
+    const t = TEXT[lang];
+    const canvas = buildShareCanvas(score, playerName || suggestedName);
+    canvas.toBlob(async (blob)=>{
+      if(!blob){ await copyShareTextFallback(t); return; }
+      const file = new File([blob], 'beach-bag-blitz.png', {type:'image/png'});
+      if(navigator.canShare && navigator.canShare({files:[file]})){
+        try{
+          await navigator.share({ files:[file], title:'Beach Bag Blitz', text:t.shareText(score) });
+          return;
+        } catch(err){ return; /* user cancelled */ }
+      }
+      downloadShareImage(blob);
+      await copyShareTextFallback(t);
+    }, 'image/png');
   });
 
   // --- background music ---

@@ -6,31 +6,39 @@
 
 ## Τι παραδίδεται
 
-Ένα **αυτόνομο αρχείο**: `beach-bag-blitz.html`
-Δεν έχει build step, δεν έχει dependencies, δεν χρειάζεται bundler. Καθαρό HTML + CSS + vanilla JS
-σε ένα αρχείο. Ό,τι χρειάζεται είναι μέσα, εκτός από:
+Το frontend είναι ένα **αυτόνομο αρχείο**: `index.html` — καθαρό HTML + CSS + vanilla JS,
+χωρίς build step/bundler/dependencies. Ό,τι χρειάζεται είναι μέσα, εκτός από:
 
 - ένα Google Font import μέσω `@import url(...)` στην κορυφή του `<style>` (Fredoka + Poppins) — χρειάζεται internet, δεν είναι bundled τοπικά.
 - το μουσικό αρχείο background (βλ. παρακάτω).
 
-## Δομή φακέλων που χρειάζεται στο git
+Επιπλέον, από την προσθήκη του leaderboard και μετά, το project **δεν είναι πια 100% static**:
+υπάρχει ένα μικρό **Cloudflare Worker** (`worker/index.js`) που σερβίρει το static site ΚΑΙ ένα
+μικρό JSON API (`/api/score`, `/api/leaderboard`) πάνω σε **Cloudflare KV** για το leaderboard.
+Δες την ενότητα "Leaderboard / Daily Challenge" παρακάτω.
+
+## Δομή φακέλων
 
 ```
 / (root)
-├── index.html              ← μετονόμασε το beach-bag-blitz.html σε index.html
-└── assets/
-    └── music/
-        └── music_0.mp3     ← το mp3 που θα ανεβάσεις εσύ
+├── index.html              ← το ίδιο το παιχνίδι
+├── assets/
+│   └── music/
+│       └── music_0.mp3
+├── worker/
+│   └── index.js             ← Cloudflare Worker: σερβίρει static assets + το /api/* JSON API
+├── wrangler.toml             ← config: worker name, KV binding, assets directory
+└── .assetsignore             ← αρχεία που ΔΕΝ πρέπει να σερβιριστούν σαν static assets
+                                 (worker/, wrangler.toml, *.md, .git/, .wrangler/, node_modules/)
 ```
 
-Το HTML αναφέρεται ήδη στο μουσικό αρχείο με **σχετικό path**:
+Το HTML αναφέρεται στο μουσικό αρχείο με **σχετικό path**:
 ```html
 <audio id="bg-music" loop preload="auto">
   <source src="assets/music/music_0.mp3" type="audio/mpeg">
 </audio>
 ```
-Άρα αρκεί να μπει το mp3 ακριβώς στο `assets/music/music_0.mp3` σε σχέση με το html — δεν
-χρειάζεται καμία αλλαγή στον κώδικα.
+Άρα αρκεί το mp3 να μείνει στο `assets/music/music_0.mp3` σε σχέση με το html.
 
 ### Σχετικά με το background μουσικό loop
 - Παίζει σε loop (`loop` attribute) και ξεκινάει στο **πρώτο tap/click** του χρήστη οπουδήποτε
@@ -43,35 +51,67 @@
 
 ## Deploy σε Cloudflare Worker + Git
 
-Το παιχνίδι είναι 100% static (ένα html + ένα mp3), οπότε ταιριάζει με **Cloudflare Workers
-Static Assets** (ή, εναλλακτικά, Cloudflare Pages — και τα δύο δουλεύουν, απλά ζήτησες Worker).
+Στο Cloudflare account **ONECODE Support** έχουν ήδη δημιουργηθεί:
+- Worker: **`beachbagblitz`**
+- KV namespace: **`beach-bag-blitz-leaderboard`** (id `8b64091dc66d41c4bb2d8d9a795af625`), ήδη
+  δεμένο στο `wrangler.toml` με binding `LEADERBOARD`.
 
-Βασικά βήματα (σε γενικές γραμμές — επιβεβαίωσε στο τρέχον Cloudflare docs γιατί το tooling
-ενημερώνεται συχνά):
+Ό,τι λείπει είναι το **actual deploy** — δεν υπάρχει `wrangler` authentication μέσα σε αυτό το
+sandbox, οπότε ο κώδικας είναι έτοιμος αλλά χρειάζεται να τρέξει το deploy από μηχάνημα/session με
+πρόσβαση στον Cloudflare λογαριασμό:
 
-1. `git init` στον φάκελο, πρόσθεσε `index.html` και `assets/music/music_0.mp3`, commit, push σε
-   ένα νέο repo.
-2. Στο project φτιάξε ένα `wrangler.toml` που δείχνει το static assets directory στον φάκελο
-   root (ή σε `public/` αν προτιμήσεις να μετακινήσεις τα αρχεία εκεί).
-3. `wrangler deploy` (ή σύνδεση του repo απευθείας από το Cloudflare dashboard για auto-deploy σε
-   κάθε push — αν θες CI/CD χωρίς να τρέχεις εσύ το deploy κάθε φορά).
-4. Μόλις είναι live σε πραγματικό https domain (όχι `file://`), δοκίμασε το κουμπί **Share
-   score** στο τέλος — χρησιμοποιεί το native Web Share API, το οποίο **απαιτεί HTTPS** για να
-   δουλέψει. Σε localhost/https θα ανοίγει το native share sheet του κινητού· αν ανοιχτεί σαν
-   τοπικό αρχείο θα πέσει στο clipboard-copy fallback (λειτουργεί ούτως ή άλλως, απλά είναι το
-   δεύτερο-καλύτερο experience).
+1. `npx wrangler login` (μία φορά, ανοίγει browser για auth).
+2. Μέσα στον φάκελο του project: `npx wrangler deploy` — διαβάζει το `wrangler.toml`, ανεβάζει το
+   `worker/index.js` σαν Worker script, συνδέει το υπάρχον KV namespace, και ανεβάζει
+   `index.html` + `assets/` σαν static assets.
+3. Μόλις είναι live σε πραγματικό https domain (`*.workers.dev` ή custom domain), δοκίμασε:
+   - Το κουμπί **Μοιράσου το** στο τέλος — παράγει branded εικόνα (canvas) με το score πάνω σε
+     onecode branding και ανοίγει το native Web Share API (Instagram Stories κ.λπ.), το οποίο
+     **απαιτεί HTTPS**. Fallback: download της εικόνας + copy κειμένου στο clipboard.
+   - Τα endpoints `/api/leaderboard?scope=daily` και `/api/leaderboard?scope=alltime` πρέπει να
+     επιστρέφουν `{"scope":...,"entries":[]}` αρχικά (κενό leaderboard).
+
+### Τοπικό testing χωρίς login
+
+`npx wrangler dev --local` σερβίρει το ίδιο Worker + KV locally χωρίς να χρειάζεται authentication
+(Miniflare simulation). **Πρόσεχε**: βάλε `--persist-to` σε φάκελο **εκτός** του project root,
+αλλιώς ο φάκελος `.wrangler/` που δημιουργεί το ίδιο το wrangler μπαίνει μέσα στο assets directory
+(`./`) και προκαλεί ατέρμονο reload loop (το `.assetsignore`/`.gitignore` το αγνοούν πλέον, αλλά
+το `--persist-to` είναι πιο καθαρή λύση για dev).
 
 ## Ρυθμίσεις που υπάρχουν ήδη μέσα στο παιχνίδι
 
 - **Γλώσσα**: ΕΛ/EN toggle πάνω δεξιά στην αρχική οθόνη — αλλάζει οδηγίες, ετικέτες τσαντών,
-  δυσκολία, μηνύματα τέλους.
-- **Δυσκολία**: Εύκολο / Κανονικό / Δύσκολο — επηρεάζει μόνο την ταχύτητα πτώσης (και πόσο
-  γρήγορα αυξάνεται μέσα στα 60 δευτερόλεπτα), όχι το σκοράρισμα.
-- **Φύλο** (👙/🩳): επηρεάζει μόνο το κείμενο του "certified champion" μηνύματος στο τέλος
-  (γραμματικό γένος στα Ελληνικά· στα Αγγλικά το κείμενο είναι ουδέτερο).
-- **Μοιράσου το σκορ**: Web Share API με clipboard fallback (βλ. παραπάνω).
-- Δεν χρησιμοποιείται `localStorage`/`sessionStorage` πουθενά — το high score δεν επιμένει
-  μεταξύ sessions αυτή τη στιγμή (δες το `IMPROVEMENTS.md` για πρόταση σχετικά).
+  δυσκολία, μηνύματα τέλους, και όλα τα κείμενα leaderboard/daily challenge.
+- **Δυσκολία**: Εύκολο / Κανονικό / Δύσκολο — επηρεάζει μόνο την ταχύτητα πτώσης, όχι το
+  σκοράρισμα. Στο Daily Challenge είναι πάντα κλειδωμένη στο "Κανονικό" (για δίκαιη σύγκριση) και
+  επαναφέρεται στην προηγούμενη επιλογή μόλις τελειώσει η daily προσπάθεια.
+- **Φύλο** (👙/🩳): επηρεάζει μόνο το κείμενο του "certified champion" μηνύματος στο τέλος.
+- **Ήχοι εφέ / confetti / haptics**: ding στο σωστό catch, buzz στο miss (synthesized με Web Audio
+  API, όχι αρχεία), confetti burst που κλιμακώνεται με το combo, `navigator.vibrate(10)`.
+- **Μοιράσου το σκορ**: branded εικόνα (canvas) πάνω σε onecode styling μέσω Web Share API
+  (`files`), με fallback σε download εικόνας + copy κειμένου στο clipboard.
+
+### Leaderboard / Daily Challenge
+
+- **Όνομα παίκτη**: input στην αρχική οθόνη, αποθηκεύεται σε `localStorage` (`bbb_playerName`).
+  Απορρίπτει links (regex για `http`, `www.`, `.tld`) — client-side *και* server-side validation.
+  Αν μείνει κενό, χρησιμοποιείται αυτόματα ένα προτεινόμενο όνομα τύπου `Χρώμα`+`Ζωάκι`+αριθμός
+  (π.χ. `CoralTurtle42`) που φαίνεται σαν placeholder στο input.
+- **Persistent player id**: `crypto.randomUUID()` αποθηκευμένο σε `localStorage`
+  (`bbb_playerId`) — ταυτοποιεί τον παίκτη στο leaderboard χωρίς λογαριασμό/login.
+- **Leaderboard**: δύο tabs, "Σήμερα" (μηδενίζεται κάθε μέρα) και "Όλων των εποχών" — top 10 σε
+  KV. Κάθε κανονική προσπάθεια τροφοδοτεί το all-time board· μόνο το Daily Challenge τροφοδοτεί
+  και το daily board.
+- **Daily Challenge**: ξεχωριστό κουμπί, **1 προσπάθεια/μέρα** (enforcement client-side μέσω
+  `localStorage`, όχι server-side — ένας αποφασισμένος χρήστης θα μπορούσε να το παρακάμψει
+  καθαρίζοντας localStorage· αποδεκτό ρίσκο για ένα casual καλοκαιρινό microsite). Όλοι οι
+  παίκτες παίζουν την **ίδια ακολουθία αντικειμένων** μέσα στην ίδια ημέρα — seeded PRNG
+  (mulberry32) με seed από την ημερομηνία (Europe/Athens, UTC+3 hardcoded — δες παρακάτω).
+- **Streak**: μετράει συνεχόμενες ημέρες daily challenge σε `localStorage`, εμφανίζεται σαν 🔥
+  badge δίπλα στο daily status και στο end screen.
+- **Countdown**: "Ξαναέλα σε Xh Ym" μετά την ολοκλήρωση του daily challenge, μέχρι το επόμενο
+  τοπικό μεσονύχτι.
 
 ## Γνωστοί περιορισμοί / σημεία προσοχής
 
@@ -82,3 +122,12 @@ Static Assets** (ή, εναλλακτικά, Cloudflare Pages — και τα δ
   loop χωρίς καθυστέρηση σε mobile δεδομένα.
 - Το παιχνίδι είναι σχεδιασμένο για κατακόρυφο (portrait) mobile — δεν έχει ειδικό χειρισμό για
   landscape ή tablet/desktop πέρα από το `max-width:520px` container.
+- Η ζώνη ώρας του daily challenge/leaderboard είναι **hardcoded UTC+3** (Europe/Athens,
+  καλοκαίρι) και στον Worker (`worker/index.js`) και στο frontend — σωστό για τη διάρκεια του
+  campaign, αλλά θα χρειαστεί χειροκίνητη αλλαγή αν το campaign συνεχίσει μετά την αλλαγή ώρας.
+- Το KV read-modify-write στο `/api/score` (`upsertBoard`) δεν είναι ατομικό (atomic) — σε σπάνιο
+  race condition με ταυτόχρονα submissions θα μπορούσε ένα score να "χαθεί". Αμελητέο ρίσκο στην
+  αναμενόμενη κλίμακα κίνησης ενός 2-εβδομάδων microsite, αλλά αξίζει να το ξέρεις αν
+  μεγαλώσει σημαντικά η κίνηση.
+- Score cap 5000 στο API (`MAX_SCORE`) σαν βασικός anti-spoofing έλεγχος — όχι πλήρες anti-cheat
+  σύστημα, απλά μπλοκάρει προφανώς πλασματικά νούμερα.

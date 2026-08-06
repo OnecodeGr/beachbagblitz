@@ -1,0 +1,11 @@
+name = "beachbagblitz"
+main = "worker/index.js"
+compatibility_date = "2026-08-06"
+
+[assets]
+directory = "./"
+binding = "ASSETS"
+
+[[kv_namespaces]]
+binding = "LEADERBOARD"
+id = "8b64091dc66d41c4bb2d8d9a795af625"
