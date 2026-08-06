@@ -698,6 +698,12 @@
     }
   };
 
+  const SITE_URL = 'https://bbb.onecode.win';
+
+  function shareMessage(finalScore){
+    return TEXT[lang].shareText(finalScore) + ' ' + SITE_URL;
+  }
+
   let lang = 'gr';
 
   function applyLang(){
@@ -1492,7 +1498,7 @@
 
     ctx.font = '30px Poppins, sans-serif';
     ctx.fillStyle = 'rgba(255,255,255,0.5)';
-    ctx.fillText(location.hostname || 'onecode', 540, 1800);
+    ctx.fillText(SITE_URL.replace(/^https?:\/\//, ''), 540, 1800);
 
     return canvas;
   }
@@ -1502,7 +1508,7 @@
   }
 
   async function copyShareTextFallback(t){
-    const fallbackText = t.shareText(score) + ' ' + window.location.href;
+    const fallbackText = shareMessage(score);
     try{
       await navigator.clipboard.writeText(fallbackText);
     } catch(err){
@@ -1539,7 +1545,7 @@
       const file = new File([blob], 'beach-bag-blitz.png', {type:'image/png'});
       if(navigator.canShare && navigator.canShare({files:[file]})){
         try{
-          await navigator.share({ files:[file], title:'Beach Bag Blitz', text:t.shareText(score) });
+          await navigator.share({ files:[file], title:'Beach Bag Blitz', text:shareMessage(score) });
           return;
         } catch(err){ return; /* user cancelled */ }
       }
