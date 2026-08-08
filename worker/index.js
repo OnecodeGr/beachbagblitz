@@ -94,6 +94,15 @@ async function handleApi(request, env, url) {
   }
 
   if (url.pathname === '/api/stats' && request.method === 'GET') {
+    const range = url.searchParams.get('range');
+    const from = url.searchParams.get('from');
+    const to = url.searchParams.get('to');
+
+    if (range === 'all' || from || to) {
+      const { total, byDay } = await computeAggregateStats(env, from || null, to || null);
+      return json({ range: range === 'all' ? 'all' : { from: from || null, to: to || null }, stats: total, byDay });
+    }
+
     const date = url.searchParams.get('date') || todayKey();
     const stats = await computeStats(env, date);
     return json({ date, stats });
@@ -166,25 +175,58 @@ function emptyStats() {
   };
 }
 
+function accumulateStat(stats, m) {
+  if (!m) return;
+  if (m.type === 'game_started') {
+    stats.gamesStarted += 1;
+    if (m.lang) stats.byLang[m.lang] = (stats.byLang[m.lang] || 0) + 1;
+    if (m.difficulty) stats.byDifficulty[m.difficulty] = (stats.byDifficulty[m.difficulty] || 0) + 1;
+    if (m.mode === 'daily') stats.dailyChallengePlays += 1;
+  } else if (m.type === 'game_completed') {
+    stats.gamesCompleted += 1;
+    if (typeof m.score === 'number') stats.totalScore += m.score;
+  } else if (m.type === 'share_used') {
+    stats.shareUsed += 1;
+  }
+}
+
+function finalizeStats(stats) {
+  stats.averageScore = stats.gamesCompleted > 0 ? Math.round(stats.totalScore / stats.gamesCompleted) : 0;
+  return stats;
+}
+
 async function computeStats(env, date) {
   const stats = emptyStats();
   const keys = await listAllKeys(env, `event:${date}:`);
+  for (const key of keys) accumulateStat(stats, key.metadata);
+  return finalizeStats(stats);
+}
+
+// Aggregates every recorded event (optionally bounded to [fromDate, toDate], inclusive, either end
+// optional) into one grand total plus a per-day breakdown — for a "how's the whole campaign doing"
+// view rather than a single day. Events auto-expire from KV after ~30 days (see DAILY_TTL_SECONDS),
+// well past a 2-week campaign, so listing the whole `event:` prefix stays cheap.
+async function computeAggregateStats(env, fromDate, toDate) {
+  const keys = await listAllKeys(env, 'event:');
+  const total = emptyStats();
+  const byDateMap = new Map();
+
   for (const key of keys) {
-    const m = key.metadata;
-    if (!m) continue;
-    if (m.type === 'game_started') {
-      stats.gamesStarted += 1;
-      if (m.lang) stats.byLang[m.lang] = (stats.byLang[m.lang] || 0) + 1;
-      if (m.difficulty) stats.byDifficulty[m.difficulty] = (stats.byDifficulty[m.difficulty] || 0) + 1;
-      if (m.mode === 'daily') stats.dailyChallengePlays += 1;
-    } else if (m.type === 'game_completed') {
-      stats.gamesCompleted += 1;
-      if (typeof m.score === 'number') stats.totalScore += m.score;
-    } else if (m.type === 'share_used') {
-      stats.shareUsed += 1;
-    }
+    const date = key.name.split(':')[1]; // "event:{date}:{uuid}"
+    if (fromDate && date < fromDate) continue;
+    if (toDate && date > toDate) continue;
+
+    accumulateStat(total, key.metadata);
+    if (!byDateMap.has(date)) byDateMap.set(date, emptyStats());
+    accumulateStat(byDateMap.get(date), key.metadata);
   }
-  return stats;
+
+  finalizeStats(total);
+  const byDay = Array.from(byDateMap.entries())
+    .sort((a, b) => (a[0] < b[0] ? -1 : 1))
+    .map(([date, stats]) => ({ date, stats: finalizeStats(stats) }));
+
+  return { total, byDay };
 }
 
 function corsHeaders() {

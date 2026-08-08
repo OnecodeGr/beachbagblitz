@@ -134,13 +134,33 @@ cookieless endpoint πάνω στο ίδιο Worker/KV:
 
 - `POST /api/event` με `{type: 'game_started'|'game_completed'|'share_used', lang, difficulty, mode, score}`
   — καλείται από το frontend μέσω `navigator.sendBeacon` (fire-and-forget, δεν μπλοκάρει το UI).
-- `GET /api/stats?date=YYYY-MM-DD` (προεπιλογή: σήμερα) επιστρέφει τα aggregated ημερήσια counters:
-  `gamesStarted`, `gamesCompleted`, `totalScore` (÷ `gamesCompleted` = μέσο σκορ), `shareUsed`,
-  `dailyChallengePlays`, `byLang`, `byDifficulty`. Κανένα PII, κανένα cookie, μόνο aggregate
-  counters ανά ημέρα σε KV (key: `stats:{date}`).
+  Κάθε event γράφεται σε δικό του μοναδικό KV key (`event:{date}:{uuid}`, metadata-only, καθόλου
+  τιμή) — μηδενικό read-modify-write, μηδενικό race μεταξύ ταυτόχρονων events.
+- `GET /api/stats` — retrieval του tracking. Δες παρακάτω για τα modes.
 - Προαιρετικά, υπάρχει commented-out το standard Cloudflare Web Analytics beacon script στο
   `<head>` του `index.html` για baseline pageview/performance metrics — χρειάζεται να φτιάξεις ένα
   site στο Cloudflare dashboard (Account Home → Web Analytics) και να βάλεις το token του.
+
+#### Πώς να διαβάσεις τα stats
+
+`GET /api/stats` δεν έχει UI/dashboard — είναι raw JSON, το χτυπάς απευθείας (browser ή `curl`).
+Τρία modes:
+
+- **Μία μέρα** (προεπιλογή = σήμερα): `GET /api/stats` ή `GET /api/stats?date=2026-08-07`
+  → `{ date, stats }`.
+- **Όλο το campaign**: `GET /api/stats?range=all` → `{ range: "all", stats: <grand total>, byDay: [{date, stats}, ...] }`.
+  Λίστάρει ό,τι event υπάρχει ακόμα στο KV (events λήγουν μετά ~30 μέρες, δες `DAILY_TTL_SECONDS`)
+  και τα ομαδοποιεί ανά ημέρα, χωρίς να χρειάζεται να ξέρεις εκ των προτέρων ποιες μέρες έχουν data.
+- **Συγκεκριμένο εύρος**: `GET /api/stats?from=2026-08-05&to=2026-08-07` (και τα δύο προαιρετικά,
+  ανοιχτό εύρος αν λείπει το ένα) → ίδιο σχήμα με `range=all`, φιλτραρισμένο.
+
+Σε κάθε mode, το `stats` object έχει: `gamesStarted`, `gamesCompleted`, `totalScore`, `averageScore`
+(ήδη υπολογισμένο, `totalScore ÷ gamesCompleted`), `shareUsed`, `dailyChallengePlays`, `byLang`,
+`byDifficulty`. Κανένα PII, κανένα cookie, μόνο aggregate counters.
+
+⚠️ Το endpoint είναι **public, χωρίς auth** — όποιος ξέρει το URL μπορεί να το διαβάσει. Αποδεκτό
+ρίσκο για ένα casual 2-εβδομάδων microsite, αλλά αν θες να το κλειδώσεις (π.χ. shared-secret query
+param ή header check στο Worker) είναι μικρή αλλαγή.
 
 ## Γνωστοί περιορισμοί / σημεία προσοχής
 
