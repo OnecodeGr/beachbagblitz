@@ -56,6 +56,41 @@
 - Verified: manifest fetched+parsed σωστά από πραγματικό browser (Chromium via Playwright), service
   worker φτάνει σε `active` state, το παιχνίδι δουλεύει κανονικά μετά την εγκατάσταση όλων αυτών.
 
+### Link preview / social card (Discord, X, Facebook, Google)
+
+Όταν κάποιος μοιράζεται το `https://bbb.onecode.win/` σε Discord/X/Facebook/κ.λπ., το link πρέπει
+να δείχνει σωστό preview card (τίτλος, περιγραφή, εικόνα) — όχι απλά ένα γυμνό link. Στο `<head>`
+του `index.html` υπάρχουν πλέον:
+
+- **Open Graph** (`og:*`) — το κύριο πρότυπο, το διαβάζουν Discord, Facebook, LinkedIn, Slack κ.λπ.
+  `og:title`, `og:description`, `og:image` (+ `width`/`height`/`type`/`alt`), `og:url`,
+  `og:site_name`, `og:type`, `og:locale` (`en_US` κύριο, `el_GR` alternate — το ίδιο το παιχνίδι
+  είναι δίγλωσσο).
+- **Twitter/X Card** (`twitter:*`) — `summary_large_image` (μεγάλη preview εικόνα, όχι μικρό
+  thumbnail). Το X διαβάζει πρώτα αυτά, μετά πέφτει σε OG tags σαν fallback.
+- **Standard SEO**: `<meta name="description">`, `<link rel="canonical">`.
+- **JSON-LD structured data** (`application/ld+json`, `schema.org/WebApplication`) — βοηθάει τη
+  Google να καταλάβει τι είναι η σελίδα (δωρεάν παιχνίδι, `GameApplication`, publisher onecode).
+
+**`assets/og-image.jpg`** (1200×630, το standard OG aspect ratio) — φτιαγμένο με το ίδιο radial
+gradient background + τη gradient τυπογραφία (pink→purple) που έχει ήδη το `<h1>` μέσα στο ίδιο το
+παιχνίδι, με το 🏖️, το ONECODE badge, τη legend (💻🎧📱 ⛱️🦩⭐ 🕶️🩴💄), και το `bbb.onecode.win` στο
+footer για brand recall. Εξάγεται σαν JPEG (~46KB, όχι PNG) — μικρότερο αρχείο, πιο γρήγορο unfurl
+σε chat apps, χωρίς ορατή απώλεια ποιότητας σε αυτό το περιεχόμενο (gradient + κείμενο, όχι φωτο).
+
+⚠️ **Σημαντικό**: τα `og:image`/`og:url`/`twitter:image`/κ.λπ. χρειάζονται **absolute URLs**
+(hardcoded `https://bbb.onecode.win/...`, όχι σχετικά paths) — οι crawlers των πλατφορμών τα
+διαβάζουν χωρίς να τρέχουν JS και χωρίς notion του "current page" origin. Αν αλλάξει ποτέ το domain
+του campaign, αυτά τα tags (και το `manifest.webmanifest`'s `start_url`, και το `SITE_URL` constant
+μέσα στο `index.html` script για τα share messages) πρέπει να ενημερωθούν χειροκίνητα, δεν
+παίρνονται αυτόματα από `window.location`.
+
+Verified: όλα τα tags + η εικόνα σερβίρονται σωστά μέσα από τον πραγματικό Worker (σωστό
+`content-type`, σωστό μέγεθος), και validated ότι δεν έσπασε τίποτα στο ίδιο το παιχνίδι.
+Discord/Facebook/X cache τα link previews τους — αν χρειαστεί να δεις αμέσως το ενημερωμένο
+preview μετά από αλλαγή, οι πλατφόρμες έχουν δικά τους debugger/cache-refresh εργαλεία (π.χ.
+Twitter Card Validator, Facebook Sharing Debugger) — δεν αρκεί απλά να ξαναμοιράσεις το ίδιο link.
+
 Το HTML αναφέρεται στο μουσικό αρχείο με **σχετικό path**:
 ```html
 <audio id="bg-music" loop preload="auto">
