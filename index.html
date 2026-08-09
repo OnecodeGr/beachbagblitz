@@ -1337,12 +1337,17 @@
   function openLeaderboard(scope){
     lbTabDaily.classList.toggle('active', scope === 'daily');
     lbTabAlltime.classList.toggle('active', scope === 'alltime');
-    // Hide whichever screen is currently showing — overlays share a semi-transparent
-    // background, so leaving one underneath makes the two bleed together visually.
-    if(!startScreen.classList.contains('hidden')) lbReturnScreen = startScreen;
-    else if(!endScreen.classList.contains('hidden')) lbReturnScreen = endScreen;
-    else lbReturnScreen = null;
-    if(lbReturnScreen) lbReturnScreen.classList.add('hidden');
+    // This same function also runs on tab switches (Today/All-time) while the leaderboard is
+    // already open — only capture/hide the return screen on a genuine open, otherwise the tab
+    // switch sees start/end screen already hidden and clobbers lbReturnScreen with null.
+    if(lbScreen.classList.contains('hidden')){
+      // Overlays share a semi-transparent background, so leaving one underneath while another
+      // is open makes the two bleed together visually — hide whichever screen is showing.
+      if(!startScreen.classList.contains('hidden')) lbReturnScreen = startScreen;
+      else if(!endScreen.classList.contains('hidden')) lbReturnScreen = endScreen;
+      else lbReturnScreen = null;
+      if(lbReturnScreen) lbReturnScreen.classList.add('hidden');
+    }
     lbScreen.classList.remove('hidden');
     loadLeaderboard(scope);
   }
