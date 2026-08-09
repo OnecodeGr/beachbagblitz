@@ -22,15 +22,39 @@
 ```
 / (root)
 ├── index.html              ← το ίδιο το παιχνίδι
+├── manifest.webmanifest     ← PWA manifest (installable app) — δες παρακάτω
+├── sw.js                    ← minimal service worker, καθόλου caching (δες παρακάτω)
 ├── assets/
-│   └── music/
-│       └── music_0.mp3
+│   ├── music/
+│   │   └── music_0.mp3
+│   └── icons/                ← PWA icons (192/512/512-maskable/apple-touch-180), όλα PNG
 ├── worker/
 │   └── index.js             ← Cloudflare Worker: σερβίρει static assets + το /api/* JSON API
 ├── wrangler.toml             ← config: worker name, KV binding, assets directory
 └── .assetsignore             ← αρχεία που ΔΕΝ πρέπει να σερβιριστούν σαν static assets
                                  (worker/, wrangler.toml, *.md, .git/, .wrangler/, node_modules/)
 ```
+
+### Installable ως app (PWA)
+
+Το παιχνίδι μπορεί να εγκατασταθεί σε home screen (iOS/Android) ή σαν desktop app (Chrome/Edge
+"Install app"):
+
+- `manifest.webmanifest` — name, icons (192/512 + 512 maskable), `display:"standalone"`,
+  `orientation:"portrait"`, `background_color`/`theme_color: #0d0716` (ίδιο με το `--bg` του
+  παιχνιδιού), `start_url: "/?source=pwa"`.
+- Icons φτιαγμένα με το ίδιο radial gradient background που χρησιμοποιεί ήδη το παιχνίδι, με 🏖️
+  emoji — το maskable variant έχει επιπλέον padding (safe zone) ώστε να μην κοπεί όταν το OS
+  εφαρμόσει το δικό του mask (κύκλος/squircle/κ.λπ.).
+- `<link rel="apple-touch-icon">` + `apple-mobile-web-app-*` meta tags στο `<head>` για iOS Safari,
+  το οποίο αγνοεί εν μέρει το web manifest και θέλει τα δικά του tags για "Add to Home Screen".
+- `sw.js` — **εντελώς minimal**, χωρίς κανένα caching/fetch interception. Η μόνη του δουλειά είναι
+  να *υπάρχει* — κάποιοι browsers ακόμα το χρησιμοποιούν σαν ένα από τα installability signals.
+  Σκόπιμα δεν κάνει cache τίποτα: το παιχνίδι στηρίζεται σε πάντα-φρέσκα `/api/*` δεδομένα
+  (leaderboard, daily challenge, stats) — αν το service worker έκανε cache αυτές τις απαντήσεις θα
+  υπήρχε κίνδυνος να δείχνει μπαγιάτικο leaderboard/σκορ.
+- Verified: manifest fetched+parsed σωστά από πραγματικό browser (Chromium via Playwright), service
+  worker φτάνει σε `active` state, το παιχνίδι δουλεύει κανονικά μετά την εγκατάσταση όλων αυτών.
 
 Το HTML αναφέρεται στο μουσικό αρχείο με **σχετικό path**:
 ```html

@@ -7,6 +7,15 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="preload" href="assets/music/music_0.mp3" as="audio">
+
+<!-- Installable as an app (PWA): manifest + icons + minimal service worker, see manifest.webmanifest / sw.js -->
+<link rel="manifest" href="manifest.webmanifest">
+<meta name="theme-color" content="#0d0716">
+<link rel="icon" href="assets/icons/icon-192.png" sizes="192x192" type="image/png">
+<link rel="apple-touch-icon" href="assets/icons/apple-touch-icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Beach Bag Blitz">
 <!--
   Optional: Cloudflare Web Analytics (free, cookieless pageview/performance metrics).
   Web Analytics does not support custom events (games started/completed, share usage, etc. —
@@ -1748,6 +1757,12 @@
     if(!bgMusic.muted) tryPlayMusic();
   });
 })();
+
+if('serviceWorker' in navigator){
+  window.addEventListener('load', ()=>{
+    navigator.serviceWorker.register('sw.js').catch(()=>{ /* installability is a bonus, not a requirement */ });
+  });
+}
 </script>
 </body>
 </html>
