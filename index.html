@@ -125,6 +125,43 @@
     0%,100%{ transform:scale(1); }
     50%{ transform:scale(1.08); }
   }
+  .item.paradox{
+    border-color:var(--purple-soft);
+    box-shadow:0 0 16px 4px rgba(167,139,250,0.55), 0 6px 18px rgba(0,0,0,0.35);
+    animation:paradox-spin 2.2s linear infinite;
+  }
+  @keyframes paradox-spin{
+    from{ transform:rotate(0deg); }
+    to{ transform:rotate(360deg); }
+  }
+
+  #twist-chip{
+    position:absolute; top:54px; right:12px; z-index:20;
+    max-width:150px;
+    background:rgba(124,58,237,0.18);
+    border:1px solid rgba(167,139,250,0.4);
+    border-radius:999px;
+    padding:5px 10px;
+    font-family:'Fredoka',sans-serif; font-size:11px; font-weight:600;
+    color:var(--sand);
+    backdrop-filter:blur(6px);
+    pointer-events:none;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+
+  .twist-badge{
+    display:flex; align-items:center; gap:8px;
+    background:rgba(124,58,237,0.14);
+    border:1px solid rgba(167,139,250,0.35);
+    border-radius:12px;
+    padding:8px 12px;
+    margin:8px 0;
+    text-align:left;
+    font-size:12px;
+    color:rgba(255,255,255,0.75);
+  }
+  .twist-badge .twist-icon{ font-size:22px; flex:none; }
+  .twist-badge .twist-text strong{ color:var(--sand); font-family:'Fredoka',sans-serif; }
 
   .float-text{
     position:absolute;
@@ -478,6 +515,8 @@
     <div class="hud-pill" id="lives">☀️☀️☀️</div>
   </div>
 
+  <div id="twist-chip" class="hidden"></div>
+
   <div id="combo-wrap" class="hidden">
     <div id="umbrella">⛱️</div>
     <div id="combo-label">COMBO x1</div>
@@ -598,6 +637,7 @@
   const startBtn = document.getElementById('start-btn');
   const retryBtn = document.getElementById('retry-btn');
   const hud = document.getElementById('hud');
+  const twistChipEl = document.getElementById('twist-chip');
   const bagsEl = document.getElementById('bags');
   const wavesEl = document.getElementById('waves');
   const flamingoEl = document.getElementById('flamingo');
@@ -673,7 +713,8 @@
       lbTitle: 'Κατάταξη', lbToday: 'Σήμερα', lbAllTime: 'Όλων των εποχών', lbClose: 'Κλείσιμο',
       lbEmpty: 'Κανένα σκορ ακόμα — γίνε ο πρώτος!', lbLoading: 'Φόρτωση…',
       lbError: 'Η κατάταξη δεν είναι διαθέσιμη αυτή τη στιγμή.',
-      rankTopDaily: 'Μπήκες στο σημερινό Top 10! 🏆', rankTopAlltime: 'Μπήκες στο Top 10 όλων των εποχών! 🏆'
+      rankTopDaily: 'Μπήκες στο σημερινό Top 10! 🏆', rankTopAlltime: 'Μπήκες στο Top 10 όλων των εποχών! 🏆',
+      twistLabel: 'Σημερινή Ανατροπή'
     },
     en: {
       instructions: 'Drag every falling item into the right bag before it lands in the sand. Chain catches for combo multipliers. 60 seconds. Go!',
@@ -700,7 +741,8 @@
       lbTitle: 'Leaderboard', lbToday: 'Today', lbAllTime: 'All-time', lbClose: 'Close',
       lbEmpty: 'No scores yet — be the first!', lbLoading: 'Loading…',
       lbError: 'Leaderboard is unavailable right now.',
-      rankTopDaily: "You made today's Top 10! 🏆", rankTopAlltime: 'You made the all-time Top 10! 🏆'
+      rankTopDaily: "You made today's Top 10! 🏆", rankTopAlltime: 'You made the all-time Top 10! 🏆',
+      twistLabel: "Today's Twist"
     }
   };
 
@@ -849,8 +891,79 @@
   function athensNow(){ return new Date(Date.now() + ATHENS_OFFSET_MS); }
   function todayKey(){ return athensNow().toISOString().slice(0, 10); }
 
+  // --- Daily Twist: one small seeded gameplay variation per calendar day, Daily Challenge only.
+  // Independent of the item-order seed above — same date, same twist for every player, so it's
+  // fair and discoverable/shareable ("today's twist is Fog"), without touching free play at all.
+  const LUCKY_CHARM_POOL = {
+    tech: ['⌚', '🎮', '📷'],
+    beach: ['🍉', '🥥', '🦀'],
+    style: ['👒', '💍', '🧴']
+  };
+
+  const DAILY_TWISTS = [
+    { id:'golden-hour', kind:'buff', icon:'🌅',
+      name:{gr:'Χρυσή Ώρα', en:'Golden Hour'},
+      desc:{gr:'Διπλάσιοι πόντοι τα πρώτα 15″.', en:'Double points for the first 15s.'} },
+    { id:'fog', kind:'debuff', icon:'🌫️',
+      name:{gr:'Ομίχλη', en:'Fog'},
+      desc:{gr:'Τα αντικείμενα ξεθωριάζουν όσο πέφτουν.', en:'Items fade out as they fall.'} },
+    { id:'bag-shuffle', kind:'debuff', icon:'🔀',
+      name:{gr:'Ανακάτεμα Τσαντών', en:'Bag Shuffle'},
+      desc:{gr:'Οι τσάντες άλλαξαν θέση σήμερα — δες τις ετικέτες.', en:'Bags swapped position today — check the labels.'} },
+    { id:'lucky-charm', kind:'icon', icon:'🍀',
+      name:{gr:'Γούρι', en:'Lucky Charm'},
+      desc:{gr:'Ένα νέο αντικείμενο-έκπληξη εμφανίζεται σήμερα.', en:'A new surprise item appears today.'} },
+    { id:'paradox', kind:'active', icon:'🌀',
+      name:{gr:'Παράδοξο', en:'Paradox'},
+      desc:{gr:'Το 🌀 μετράει μόνο στη ΛΑΘΟΣ τσάντα!', en:'The 🌀 only scores in the WRONG bag!'} }
+  ];
+  const PARADOX_CHANCE = 0.06;
+
+  // Pure function of today's date — safe to call repeatedly (e.g. for a start-screen preview)
+  // and still get the exact same result a real run would use.
+  function pickDailyTwist(){
+    const twistRng = mulberry32(hashSeed('bbb-twist-' + todayKey()));
+    const twist = Object.assign({}, DAILY_TWISTS[Math.floor(twistRng() * DAILY_TWISTS.length)]);
+
+    if(twist.id === 'lucky-charm'){
+      const categories = ['tech', 'beach', 'style'];
+      twist.charmCat = categories[Math.floor(twistRng() * categories.length)];
+      const pool = LUCKY_CHARM_POOL[twist.charmCat];
+      twist.charmIcon = pool[Math.floor(twistRng() * pool.length)];
+    }
+    if(twist.id === 'bag-shuffle'){
+      const order = ['tech', 'beach', 'style'];
+      for(let i = order.length - 1; i > 0; i--){
+        const j = Math.floor(twistRng() * (i + 1));
+        const tmp = order[i]; order[i] = order[j]; order[j] = tmp;
+      }
+      twist.bagOrder = order;
+    }
+    return twist;
+  }
+
+  function twistBadgeHtml(twist){
+    if(!twist) return '';
+    const t = TEXT[lang];
+    const name = twist.name[lang] || twist.name.gr;
+    const desc = twist.desc[lang] || twist.desc.gr;
+    return `<div class="twist-badge"><span class="twist-icon">${twist.icon}</span>` +
+      `<span class="twist-text"><strong>${t.twistLabel}: ${name}</strong><br>${desc}</span></div>`;
+  }
+
+  function applyBagOrder(order){
+    order.forEach(cat => {
+      const el = bags.find(b => b.dataset.cat === cat);
+      if(el) bagsEl.appendChild(el);
+    });
+  }
+  const ORIGINAL_BAG_ORDER = bags.map(b => b.dataset.cat);
+  function restoreBagOrder(){ applyBagOrder(ORIGINAL_BAG_ORDER); }
+
   let rng = Math.random;
   let isDailyRun = false;
+  let activeTwist = null;
+  let activeItemPool = null; // set once ITEMS exists, below
 
   // --- daily challenge: same seed for everyone, best of 3 attempts per local day, streak tracking ---
   const DAILY_MAX_ATTEMPTS = 3;
@@ -913,8 +1026,9 @@
   function dailyStatusHtml(){
     const t = TEXT[lang];
     const remaining = DAILY_MAX_ATTEMPTS - getDailyAttempts();
-    if(remaining <= 0) return streakBadgeHtml() + `<div>${t.dailyDone(msUntilNextLocalMidnight())}</div>`;
-    return streakBadgeHtml() + `<div>${t.dailyReady(remaining)}</div>`;
+    const badge = twistBadgeHtml(pickDailyTwist());
+    if(remaining <= 0) return streakBadgeHtml() + badge + `<div>${t.dailyDone(msUntilNextLocalMidnight())}</div>`;
+    return streakBadgeHtml() + badge + `<div>${t.dailyReady(remaining)}</div>`;
   }
 
   function renderDailyStatus(){
@@ -931,6 +1045,7 @@
     {icon:'⛱️', cat:'beach'}, {icon:'🦩', cat:'beach'}, {icon:'⭐', cat:'beach'}, {icon:'🐚', cat:'beach'},
     {icon:'🕶️', cat:'style'}, {icon:'🩴', cat:'style'}, {icon:'💄', cat:'style'}
   ];
+  activeItemPool = ITEMS; // default pool; beginDailyChallenge() may swap in a lucky-charm variant
   // Rare bonus items — visually distinct, not tied to a category, catchable in ANY bag.
   const POWERUPS = [
     {icon:'🛟', type:'life'},
@@ -1072,6 +1187,14 @@
     comboWrap.classList.remove('hidden');
     cornerBadge.classList.remove('hidden');
 
+    if(isDailyRun && activeTwist){
+      const name = activeTwist.name[lang] || activeTwist.name.gr;
+      twistChipEl.textContent = activeTwist.icon + ' ' + name;
+      twistChipEl.classList.remove('hidden');
+    } else {
+      twistChipEl.classList.add('hidden');
+    }
+
     tickTimer = setInterval(gameTick, 1000);
     scheduleSpawn();
   }
@@ -1100,9 +1223,18 @@
     if(!running) return;
     measure();
     const isPowerUp = rng() < POWERUP_CHANCE;
-    const def = isPowerUp ? POWERUPS[Math.floor(rng()*POWERUPS.length)] : ITEMS[Math.floor(rng()*ITEMS.length)];
+    const isParadox = !isPowerUp && activeTwist && activeTwist.id === 'paradox' && rng() < PARADOX_CHANCE;
+    let def;
+    if(isPowerUp){
+      def = POWERUPS[Math.floor(rng()*POWERUPS.length)];
+    } else if(isParadox){
+      const categories = ['tech', 'beach', 'style'];
+      def = { icon: activeTwist.icon, cat: categories[Math.floor(rng()*categories.length)] };
+    } else {
+      def = activeItemPool[Math.floor(rng()*activeItemPool.length)];
+    }
     const el = document.createElement('div');
-    el.className = 'item' + (isPowerUp ? ' powerup' : '');
+    el.className = 'item' + (isPowerUp ? ' powerup' : '') + (isParadox ? ' paradox' : '');
     el.textContent = def.icon;
     const maxX = game.clientWidth - 56;
     const startX = 20 + rng()*(maxX-40);
@@ -1111,7 +1243,7 @@
     game.appendChild(el);
 
     const duration = fallSpeedMin + rng()*(fallSpeedMax-fallSpeedMin);
-    const obj = {el, cat:isPowerUp ? null : def.cat, powerUp:isPowerUp ? def.type : null, x:startX, y:-60, fromY:-60, startTime:performance.now(), duration:duration*1000, dragging:false, dead:false};
+    const obj = {el, cat:isPowerUp ? null : def.cat, powerUp:isPowerUp ? def.type : null, isParadox, x:startX, y:-60, fromY:-60, startTime:performance.now(), duration:duration*1000, dragging:false, dead:false};
     activeItems.push(obj);
     attachDrag(obj);
   }
@@ -1225,6 +1357,37 @@
     }) || null;
   }
 
+  function catchScoreGain(mult){
+    let gain = Math.round(10 * mult * DIFFICULTIES[difficulty].scoreMult);
+    // Golden Hour twist: double points for the first 15s of a Daily Challenge run.
+    if(activeTwist && activeTwist.id === 'golden-hour' && timeLeft > 45) gain *= 2;
+    return gain;
+  }
+
+  function handleCatch(obj){
+    combo += 1;
+    const mult = comboMultiplier();
+    score += catchScoreGain(mult);
+    scoreEl.textContent = score;
+    updateCombo();
+    playDing(mult);
+    vibrate(10);
+    celebrateCatch(obj, mult);
+    popItem(obj, true);
+  }
+
+  function handleMiss(obj){
+    combo = 0;
+    lives -= 1;
+    updateLives();
+    updateCombo();
+    flashMiss();
+    playBuzz();
+    vibrate(10);
+    popItem(obj, false);
+    if(lives <= 0) endGame(TEXT[lang].outOfSun);
+  }
+
   function resolveDrop(obj, cat){
     if(obj.dead) return;
     if(obj.powerUp){
@@ -1235,27 +1398,14 @@
       popItem(obj, true);
       return;
     }
-    if(cat === obj.cat){
-      combo += 1;
-      const mult = comboMultiplier();
-      score += Math.round(10 * mult * DIFFICULTIES[difficulty].scoreMult);
-      scoreEl.textContent = score;
-      updateCombo();
-      playDing(mult);
-      vibrate(10);
-      celebrateCatch(obj, mult);
-      popItem(obj, true);
-    } else {
-      combo = 0;
-      lives -= 1;
-      updateLives();
-      updateCombo();
-      flashMiss();
-      playBuzz();
-      vibrate(10);
-      popItem(obj, false);
-      if(lives <= 0) endGame(TEXT[lang].outOfSun);
+    if(obj.isParadox){
+      // Paradox twist: this item only scores in the WRONG bag today.
+      if(cat !== obj.cat) handleCatch(obj);
+      else handleMiss(obj);
+      return;
     }
+    if(cat === obj.cat) handleCatch(obj);
+    else handleMiss(obj);
   }
 
   function popItem(obj, success){
@@ -1277,22 +1427,18 @@
         const newY = obj.fromY + progress * (floor - obj.fromY);
         obj.y = newY;
         obj.el.style.top = newY + 'px';
+        // Fog twist: regular items fade out as they fall (power-ups/paradox stay clearly visible).
+        if(activeTwist && activeTwist.id === 'fog' && !obj.powerUp && !obj.isParadox){
+          obj.el.style.opacity = String(1 - progress * 0.65);
+        }
         if(progress >= 1){
           if(obj.powerUp){
             // unclaimed bonus item — just fades away, no penalty
             popItem(obj, false);
             return;
           }
-          // hit the sand = miss
-          combo = 0;
-          lives -= 1;
-          updateLives();
-          updateCombo();
-          flashMiss();
-          playBuzz();
-          vibrate(10);
-          popItem(obj, false);
-          if(lives <= 0) endGame(TEXT[lang].outOfSun);
+          // hit the sand = miss (paradox items included — dodging isn't the mechanic, wrong-bag-drop is)
+          handleMiss(obj);
         }
       });
     }
@@ -1414,6 +1560,7 @@
     flamingoEl.classList.add('hidden');
     comboWrap.classList.add('hidden');
     cornerBadge.classList.add('hidden');
+    twistChipEl.classList.add('hidden');
 
     best = Math.max(best, score);
     finalTagEl.textContent = reason;
@@ -1437,6 +1584,9 @@
     if(!commitPlayerName()) return;
     isDailyRun = false;
     rng = Math.random;
+    activeTwist = null;
+    activeItemPool = ITEMS;
+    restoreBagOrder();
     startGame();
     trackEvent('game_started', { difficulty, mode: 'free' });
   }
@@ -1446,6 +1596,12 @@
     if(!commitPlayerName()) return;
     isDailyRun = true;
     rng = mulberry32(hashSeed('bbb-daily-' + todayKey()));
+    activeTwist = pickDailyTwist();
+    activeItemPool = activeTwist.id === 'lucky-charm'
+      ? ITEMS.concat([{icon: activeTwist.charmIcon, cat: activeTwist.charmCat}])
+      : ITEMS;
+    if(activeTwist.id === 'bag-shuffle') applyBagOrder(activeTwist.bagOrder);
+    else restoreBagOrder();
     preDailyDifficulty = difficulty;
     difficulty = 'normal';
     diffButtons.forEach(b => b.classList.toggle('active', b.dataset.diff === 'normal'));

@@ -13,6 +13,8 @@
 - ~~Power-ups (extra ζωή 🛟, freeze-time ❄️ 3″)~~ — done.
 - ~~Δυσκολία βασισμένη σε score-multiplier (Hard mode +30% πόντοι/catch)~~ — done.
 - ~~Βασικό event tracking~~ (games started/completed, μέσο σκορ, share usage, ανά γλώσσα/δυσκολία) — done, δες `HANDOVER.md` (`/api/event`, `/api/stats`· το Cloudflare Web Analytics δεν υποστηρίζει custom events).
+- ~~Daily Twist~~ (μικρή seeded-ανά-ημέρα gameplay παραλλαγή, Daily Challenge only: buff/debuff/νέο
+  icon/active mechanic) — done, δες `HANDOVER.md`.
 
 ## Γρήγορες, χαμηλού κόστους
 
