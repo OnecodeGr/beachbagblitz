@@ -35,9 +35,10 @@ async function handleApi(request, env, url) {
   }
 
   if (url.pathname === '/api/leaderboard' && request.method === 'GET') {
-    const scope = url.searchParams.get('scope') === 'daily' ? 'daily' : 'alltime';
+    const scopeParam = url.searchParams.get('scope');
+    const scope = scopeParam === 'daily' ? 'daily' : scopeParam === 'freeplay' ? 'freeplay' : 'alltime';
     const date = todayKey();
-    const prefix = scope === 'daily' ? `score:daily:${date}:` : 'score:alltime:';
+    const prefix = scope === 'daily' ? `score:daily:${date}:` : scope === 'freeplay' ? 'score:freeplay:' : 'score:alltime:';
     const entries = await listTopScores(env, prefix);
     return json({ scope, date: scope === 'daily' ? date : undefined, entries });
   }
@@ -62,12 +63,20 @@ async function handleApi(request, env, url) {
     // DIFFERENT players never race on the same key — only a single player's own double-submit could
     // race, which is low-stakes. The board itself is reconstructed at read time via list()+metadata,
     // so no shared read-modify-write blob exists to be clobbered by concurrent writers.
+    //
+    // score:alltime: and score:daily:{date}: are untouched below — every submission (free or daily)
+    // has always written to alltime, and only daily submissions write to the daily board, exactly as
+    // before. score:freeplay: is a brand-new, previously-nonexistent prefix written only for free-mode
+    // submissions — it cannot collide with or overwrite anything that already exists in KV.
     const alltime = await upsertPlayerScore(env, 'score:alltime:', entry, undefined);
     let daily = null;
+    let freeplay = null;
     if (mode === 'daily') {
       daily = await upsertPlayerScore(env, `score:daily:${todayKey()}:`, entry, DAILY_TTL_SECONDS);
+    } else {
+      freeplay = await upsertPlayerScore(env, 'score:freeplay:', entry, undefined);
     }
-    return json({ ok: true, alltime, daily });
+    return json({ ok: true, alltime, daily, freeplay });
   }
 
   if (url.pathname === '/api/event' && request.method === 'POST') {

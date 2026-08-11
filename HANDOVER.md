@@ -156,6 +156,8 @@ sandbox, οπότε ο κώδικας είναι έτοιμος αλλά χρε�
     power-up φτάσει στην άμμο αχρησιμοποίητο, απλά χάνεται σιωπηλά.
 - **Μοιράσου το σκορ**: branded εικόνα (canvas) πάνω σε onecode styling μέσω Web Share API
   (`files`), με fallback σε download εικόνας + copy κειμένου στο clipboard.
+- **🏠 Αρχική** στο end screen: γυρνάει στην αρχική οθόνη χωρίς να ξεκινήσει νέο παιχνίδι (σε
+  αντίθεση με το "Παίξε ξανά" που ξεκινάει αμέσως) — κρατάει το όνομα παίκτη που έχει ήδη γραφτεί.
 
 ### Leaderboard / Daily Challenge
 
@@ -165,11 +167,23 @@ sandbox, οπότε ο κώδικας είναι έτοιμος αλλά χρε�
   (π.χ. `CoralTurtle42`) που φαίνεται σαν placeholder στο input.
 - **Persistent player id**: `crypto.randomUUID()` αποθηκευμένο σε `localStorage`
   (`bbb_playerId`) — ταυτοποιεί τον παίκτη στο leaderboard χωρίς λογαριασμό/login.
-- **Leaderboard**: δύο tabs, "Σήμερα" (μηδενίζεται κάθε μέρα) και "Όλων των εποχών" — top 10 σε
-  KV, κρατάει το **καλύτερο σκορ ποτέ ανά παίκτη** (όχι το πιο πρόσφατο submission — `upsertBoard`
-  στο `worker/index.js` κάνει compare-and-keep-max, όχι blind overwrite). Κάθε κανονική
-  προσπάθεια τροφοδοτεί το all-time board· μόνο το Daily Challenge τροφοδοτεί και το daily board.
+- **Leaderboard**: τρία tabs πλέον — "Σήμερα" (daily, μηδενίζεται κάθε μέρα), "Ελεύθερο" (μόνο
+  ελεύθερο παιχνίδι), και "Όλων των εποχών" (alltime, μικτό — free + daily μαζί, όπως πάντα). Top
+  10 σε KV, κρατάει το **καλύτερο σκορ ποτέ ανά παίκτη** (όχι το πιο πρόσφατο submission —
+  `upsertPlayerScore` στο `worker/index.js` κάνει compare-and-keep-max, όχι blind overwrite).
   Δίπλα στο όνομα εμφανίζεται 🔥 badge με το streak του παίκτη (αν >1), καθαρά cosmetic.
+
+  **Free Play board (`score:freeplay:{playerId}`)**: προστέθηκε αργότερα, **αμιγώς additive** —
+  δεν άγγιξε καθόλου τα υπάρχοντα `score:alltime:` / `score:daily:{date}:` write paths (ίδιος
+  κώδικας, ίδια keys, byte-for-byte identical). Κάθε submission ελεύθερου παιχνιδιού (`mode:'free'`)
+  γράφει *επιπλέον* και σε αυτό το καινούργιο, μέχρι τότε ανύπαρκτο KV prefix — μηδενικό ρίσκο
+  collision με οτιδήποτε ήδη υπάρχει. Verified με πραγματικό test: seed 3 "υπαρκτών" παικτών στο
+  alltime + 1 στο daily πριν το deploy, μετά submit νέων free/daily scores μέσω του νέου κώδικα, και
+  confirmed ότι τα αρχικά 4 entries έμειναν byte-for-byte ίδια (score/streak/ts unchanged) ενώ το
+  νέο freeplay board δούλεψε σωστά μεμονωμένα. **Σημείωση**: το νέο board ξεκινάει άδειο/σχεδόν
+  άδειο — δεν υπάρχει τρόπος να ανακτηθούν retroactively τα ιστορικά free-play scores που ήδη έχουν
+  μπλεχτεί μέσα στο alltime board (δεν κρατούσε ποτέ tag για το ποιο mode τα δημιούργησε), γεμίζει
+  μόνο από εδώ και πέρα.
 - **Daily Challenge**: ξεχωριστό κουμπί, **best of 3 προσπάθειες/μέρα** — κρατάμε το καλύτερο σκορ
   των 3 (enforcement του attempt-count client-side μέσω `localStorage`, όχι server-side· ένας
   αποφασισμένος χρήστης θα μπορούσε να το παρακάμψει καθαρίζοντας localStorage — αποδεκτό ρίσκο

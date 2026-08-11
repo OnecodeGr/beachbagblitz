@@ -526,12 +526,14 @@
   .lb-tabs{
     display:flex; background:rgba(255,255,255,0.06);
     border:1px solid rgba(255,255,255,0.15);
-    border-radius:999px; overflow:hidden; margin-bottom:18px;
+    border-radius:999px; margin-bottom:18px;
+    max-width:100%; overflow-x:auto;
   }
   .lb-tab{
-    font-family:'Fredoka',sans-serif; font-size:13px; font-weight:600;
+    font-family:'Fredoka',sans-serif; font-size:12px; font-weight:600;
     border:none; background:transparent; color:rgba(255,255,255,0.55);
-    padding:9px 18px; cursor:pointer;
+    padding:9px 12px; cursor:pointer;
+    flex:none; white-space:nowrap;
   }
   .lb-tab.active{
     background:linear-gradient(90deg, var(--pink), var(--purple));
@@ -667,6 +669,7 @@
       <button class="primary" id="retry-btn">Παίξε ξανά</button>
       <button class="secondary" id="share-btn">📤 <span id="share-label">Μοιράσου το</span></button>
       <button class="secondary" id="end-leaderboard-btn">🏆 <span id="end-leaderboard-label">Κατάταξη</span></button>
+      <button class="secondary" id="home-btn">🏠 <span id="home-label">Αρχική</span></button>
     </div>
     <div id="share-toast">Αντιγράφηκε!</div>
   </div>
@@ -681,6 +684,7 @@
     <h1 id="lb-title">Κατάταξη</h1>
     <div class="lb-tabs">
       <button class="lb-tab active" id="lb-tab-daily" data-scope="daily">Σήμερα</button>
+      <button class="lb-tab" id="lb-tab-freeplay" data-scope="freeplay">Ελεύθερο</button>
       <button class="lb-tab" id="lb-tab-alltime" data-scope="alltime">Όλων των εποχών</button>
     </div>
     <div class="lb-list" id="lb-list"></div>
@@ -739,9 +743,12 @@
   const leaderboardBtnLabelEl = document.getElementById('leaderboard-btn-label');
   const endLeaderboardBtn = document.getElementById('end-leaderboard-btn');
   const endLeaderboardLabelEl = document.getElementById('end-leaderboard-label');
+  const homeBtn = document.getElementById('home-btn');
+  const homeLabelEl = document.getElementById('home-label');
   const lbScreen = document.getElementById('leaderboard-screen');
   const lbTitleEl = document.getElementById('lb-title');
   const lbTabDaily = document.getElementById('lb-tab-daily');
+  const lbTabFreeplay = document.getElementById('lb-tab-freeplay');
   const lbTabAlltime = document.getElementById('lb-tab-alltime');
   const lbListEl = document.getElementById('lb-list');
   const lbCloseBtn = document.getElementById('lb-close-btn');
@@ -768,11 +775,12 @@
       dailyReady: n => `Ίδια πρόκληση για όλους σήμερα — κρατάμε το καλύτερο σκορ από 3 προσπάθειες. Απομένουν ${n}.`,
       dailyDone: ms => `Ξαναέλα σε ${formatCountdown(ms)} για τη νέα πρόκληση.`,
       streak: n => `🔥 Σερί ${n} ${n === 1 ? 'μέρα' : 'μέρες'}`,
-      leaderboardBtn: 'Κατάταξη',
-      lbTitle: 'Κατάταξη', lbToday: 'Σήμερα', lbAllTime: 'Όλων των εποχών', lbClose: 'Κλείσιμο',
+      leaderboardBtn: 'Κατάταξη', homeBtn: 'Αρχική',
+      lbTitle: 'Κατάταξη', lbToday: 'Σήμερα', lbFreeplay: 'Ελεύθερο', lbAllTime: 'Όλων των εποχών', lbClose: 'Κλείσιμο',
       lbEmpty: 'Κανένα σκορ ακόμα — γίνε ο πρώτος!', lbLoading: 'Φόρτωση…',
       lbError: 'Η κατάταξη δεν είναι διαθέσιμη αυτή τη στιγμή.',
       rankTopDaily: 'Μπήκες στο σημερινό Top 10! 🏆', rankTopAlltime: 'Μπήκες στο Top 10 όλων των εποχών! 🏆',
+      rankTopFreeplay: 'Μπήκες στο Top 10 ελεύθερου παιχνιδιού! 🏆',
       twistLabel: 'Σημερινή Ανατροπή'
     },
     en: {
@@ -796,11 +804,12 @@
       dailyReady: n => `Same challenge for everyone today — we keep your best of 3 attempts. ${n} left.`,
       dailyDone: ms => `Come back in ${formatCountdown(ms)} for the next challenge.`,
       streak: n => `🔥 ${n} day streak`,
-      leaderboardBtn: 'Leaderboard',
-      lbTitle: 'Leaderboard', lbToday: 'Today', lbAllTime: 'All-time', lbClose: 'Close',
+      leaderboardBtn: 'Leaderboard', homeBtn: 'Home',
+      lbTitle: 'Leaderboard', lbToday: 'Today', lbFreeplay: 'Free Play', lbAllTime: 'All-time', lbClose: 'Close',
       lbEmpty: 'No scores yet — be the first!', lbLoading: 'Loading…',
       lbError: 'Leaderboard is unavailable right now.',
       rankTopDaily: "You made today's Top 10! 🏆", rankTopAlltime: 'You made the all-time Top 10! 🏆',
+      rankTopFreeplay: 'You made the Free Play Top 10! 🏆',
       twistLabel: "Today's Twist"
     }
   };
@@ -835,8 +844,10 @@
     dailyBtnLabelEl.textContent = t.dailyBtn;
     leaderboardBtnLabelEl.textContent = t.leaderboardBtn;
     endLeaderboardLabelEl.textContent = t.leaderboardBtn;
+    homeLabelEl.textContent = t.homeBtn;
     lbTitleEl.textContent = t.lbTitle;
     lbTabDaily.textContent = t.lbToday;
+    lbTabFreeplay.textContent = t.lbFreeplay;
     lbTabAlltime.textContent = t.lbAllTime;
     lbCloseBtn.textContent = t.lbClose;
     langButtons.forEach(b => b.classList.toggle('active', b.dataset.lang === lang));
@@ -1541,9 +1552,10 @@
 
   function openLeaderboard(scope){
     lbTabDaily.classList.toggle('active', scope === 'daily');
+    lbTabFreeplay.classList.toggle('active', scope === 'freeplay');
     lbTabAlltime.classList.toggle('active', scope === 'alltime');
-    // This same function also runs on tab switches (Today/All-time) while the leaderboard is
-    // already open — only capture/hide the return screen on a genuine open, otherwise the tab
+    // This same function also runs on tab switches (Today/Free Play/All-time) while the leaderboard
+    // is already open — only capture/hide the return screen on a genuine open, otherwise the tab
     // switch sees start/end screen already hidden and clobbers lbReturnScreen with null.
     if(lbScreen.classList.contains('hidden')){
       // Overlays share a semi-transparent background, so leaving one underneath while another
@@ -1569,6 +1581,7 @@
   endLeaderboardBtn.addEventListener('click', ()=> openLeaderboard(isDailyRun ? 'daily' : 'alltime'));
   lbCloseBtn.addEventListener('click', closeLeaderboard);
   lbTabDaily.addEventListener('click', ()=> openLeaderboard('daily'));
+  lbTabFreeplay.addEventListener('click', ()=> openLeaderboard('freeplay'));
   lbTabAlltime.addEventListener('click', ()=> openLeaderboard('alltime'));
 
   // --- basic, cookieless event tracking (own Worker/KV — Cloudflare Web Analytics has no custom-event support) ---
@@ -1597,8 +1610,10 @@
       const data = await res.json();
       const t = TEXT[lang];
       const madeDaily = isDailyRun && data.daily && data.daily.some(e => e.id === playerId);
+      const madeFreeplay = !isDailyRun && data.freeplay && data.freeplay.some(e => e.id === playerId);
       const madeAlltime = data.alltime && data.alltime.some(e => e.id === playerId);
       if(madeDaily) rankNoteEl.textContent = t.rankTopDaily;
+      else if(madeFreeplay) rankNoteEl.textContent = t.rankTopFreeplay;
       else if(madeAlltime) rankNoteEl.textContent = t.rankTopAlltime;
     } catch(err){
       // offline or not deployed yet — local play still works fine
@@ -1675,6 +1690,11 @@
   retryBtn.addEventListener('click', ()=>{
     if(isDailyRun && hasDailyAttemptsLeft()) beginDailyChallenge();
     else beginFreePlay();
+  });
+  homeBtn.addEventListener('click', ()=>{
+    endScreen.classList.add('hidden');
+    startScreen.classList.remove('hidden');
+    renderDailyStatus(); // refresh in case the date rolled over while sitting on the end screen
   });
   window.addEventListener('resize', measure);
 
