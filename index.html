@@ -898,19 +898,21 @@
   };
   let difficulty = 'normal';
   let preRunDifficulty = null;
-  let gender = 'female';
+  let gender = localStorage.getItem('bbb_gender') === 'male' ? 'male' : 'female';
 
   const ENDLESS_BASE_MIN = 6.5, ENDLESS_BASE_MAX = 9.5; // same starting pace as Normal
-  const ENDLESS_SPEEDUP_STEP = 20; // items caught between each speed nudge
-  const ENDLESS_SPEEDUP_FACTOR = 0.97; // ~3% faster fall each step — "a very little"
+  const ENDLESS_SPEEDUP_STEP = 9; // items caught between each speed nudge
+  const ENDLESS_SPEEDUP_FACTOR = 0.95; // 5% faster fall each step
   const ENDLESS_FLOOR_MIN = 1.4, ENDLESS_FLOOR_MAX = 2.0; // hard floor so it never breaks
 
   genderButtons.forEach(btn=>{
     btn.addEventListener('click', ()=>{
       gender = btn.dataset.gender;
+      localStorage.setItem('bbb_gender', gender);
       genderButtons.forEach(b=>b.classList.toggle('active', b === btn));
     });
   });
+  genderButtons.forEach(b => b.classList.toggle('active', b.dataset.gender === gender));
 
   diffButtons.forEach(btn=>{
     btn.addEventListener('click', ()=>{
@@ -1152,7 +1154,16 @@
     {icon:'⛱️', cat:'beach'}, {icon:'🦩', cat:'beach'}, {icon:'⭐', cat:'beach'}, {icon:'🐚', cat:'beach'},
     {icon:'🕶️', cat:'style'}, {icon:'🩴', cat:'style'}, {icon:'💄', cat:'style'}
   ];
-  activeItemPool = ITEMS; // default pool; beginDailyChallenge() may swap in a lucky-charm variant
+  // Endless-only: the full extra item set, on top of the base ITEMS above. Kept out of Free Play
+  // and Daily Challenge so their item mix stays exactly as before — only Endless gets the variety.
+  // Reserved icons (LUCKY_CHARM_POOL below and the two POWERUPS) are deliberately excluded here.
+  const ENDLESS_EXTRA_ITEMS = [
+    {icon:'🖥️', cat:'tech'}, {icon:'🖱️', cat:'tech'}, {icon:'💾', cat:'tech'}, {icon:'🔌', cat:'tech'},
+    {icon:'🌊', cat:'beach'}, {icon:'🏐', cat:'beach'}, {icon:'⛵', cat:'beach'}, {icon:'🍹', cat:'beach'},
+    {icon:'👗', cat:'style'}, {icon:'🎀', cat:'style'}, {icon:'💅', cat:'style'}, {icon:'🧢', cat:'style'}, {icon:'👔', cat:'style'}
+  ];
+  const ENDLESS_ITEMS = ITEMS.concat(ENDLESS_EXTRA_ITEMS);
+  activeItemPool = ITEMS; // default pool; beginDailyChallenge()/beginEndless() may swap in a variant
   // Rare bonus items — visually distinct, not tied to a category, catchable in ANY bag.
   const POWERUPS = [
     {icon:'🛟', type:'life'},
@@ -1752,7 +1763,7 @@
     isEndlessRun = true;
     rng = Math.random;
     activeTwist = null;
-    activeItemPool = ITEMS;
+    activeItemPool = ENDLESS_ITEMS;
     restoreBagOrder();
     preRunDifficulty = difficulty;
     difficulty = 'normal';
