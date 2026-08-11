@@ -283,7 +283,7 @@
   /* overlays */
   .overlay{
     position:absolute; inset:0; z-index:50;
-    display:flex; flex-direction:column; align-items:center; justify-content:center;
+    display:flex; flex-direction:column; align-items:center;
     text-align:center; padding:32px;
     background:radial-gradient(ellipse at 50% 30%, rgba(124,58,237,0.25), var(--bg) 75%);
     /* The game frame (#game) always stays fixed/non-scrolling — but overlay content
@@ -292,6 +292,18 @@
     overflow-y:auto;
     overscroll-behavior:contain;
     touch-action:pan-y;
+  }
+  /* Deliberately NOT justify-content:center on .overlay: centering a flex container that also
+     scrolls is a known cross-browser inconsistency — some WebKit/Safari versions start the
+     scroll position already centered instead of at the top when content overflows on both
+     sides, hiding the top of the content by default (no scroll gesture reveals it, since the
+     browser considers itself already "at" a valid scroll position). margin:auto on a single
+     wrapped inner block centers it the same way when content fits, but always starts flush at
+     the real top when it overflows, in every browser — this is the standard robust fix. */
+  .overlay-inner{
+    margin:auto 0;
+    display:flex; flex-direction:column; align-items:center;
+    width:100%;
   }
   .overlay h1{
     font-family:'Fredoka',sans-serif;
@@ -616,79 +628,85 @@
       <button id="lang-gr" class="active" data-lang="gr">ΕΛ</button>
       <button id="lang-en" data-lang="en">EN</button>
     </div>
-    <div class="brand-row">
-      <a class="onecode-badge" href="https://onecode.gr" target="_blank" rel="noopener noreferrer">
-        <span class="lg-one">O</span><span class="lg-n">N</span><span class="lg-code">ECODE</span>
-      </a>
-      <div class="tagline" id="presents-tag">presents</div>
+    <div class="overlay-inner">
+      <div class="brand-row">
+        <a class="onecode-badge" href="https://onecode.gr" target="_blank" rel="noopener noreferrer">
+          <span class="lg-one">O</span><span class="lg-n">N</span><span class="lg-code">ECODE</span>
+        </a>
+        <div class="tagline" id="presents-tag">presents</div>
+      </div>
+      <h1>Beach Bag Blitz</h1>
+      <p id="instructions">Σύρε κάθε αντικείμενο που πέφτει στη σωστή τσάντα πριν φτάσει στην άμμο. Συνέχισε σερί για πολλαπλασιαστές combo. 60 δευτερόλεπτα. Πάμε!</p>
+      <div class="legend">
+        <div><span>💻🎧📱</span><span id="legend-tech">Τεχνολογικά</span></div>
+        <div><span>⛱️🦩⭐🐚</span><span id="legend-beach">Παραλία</span></div>
+        <div><span>🕶️🩴💄</span><span id="legend-style">Στυλ</span></div>
+      </div>
+      <div class="name-field">
+        <label for="player-name" id="name-label">Το όνομά σου</label>
+        <input type="text" id="player-name" maxlength="20" autocomplete="off">
+      </div>
+      <div class="diff-label" id="gender-label">Ποιος παίζει;</div>
+      <div class="diff-row">
+        <button class="diff-btn gender-btn active" id="gender-female" data-gender="female">👙</button>
+        <button class="diff-btn gender-btn" id="gender-male" data-gender="male">🩳</button>
+      </div>
+      <div class="diff-label" id="diff-label">Διάλεξε ρυθμό</div>
+      <div class="diff-row">
+        <button class="diff-btn" id="diff-easy" data-diff="easy">Εύκολο</button>
+        <button class="diff-btn active" id="diff-normal" data-diff="normal">Κανονικό</button>
+        <button class="diff-btn" id="diff-hard" data-diff="hard">Δύσκολο</button>
+      </div>
+      <div class="mode-row">
+        <button class="primary" id="start-btn">Παίξε τώρα</button>
+        <button class="secondary" id="daily-btn">📅 <span id="daily-btn-label">Daily Challenge</span></button>
+        <button class="secondary" id="leaderboard-btn">🏆 <span id="leaderboard-btn-label">Κατάταξη</span></button>
+      </div>
+      <div id="daily-status"></div>
     </div>
-    <h1>Beach Bag Blitz</h1>
-    <p id="instructions">Σύρε κάθε αντικείμενο που πέφτει στη σωστή τσάντα πριν φτάσει στην άμμο. Συνέχισε σερί για πολλαπλασιαστές combo. 60 δευτερόλεπτα. Πάμε!</p>
-    <div class="legend">
-      <div><span>💻🎧📱</span><span id="legend-tech">Τεχνολογικά</span></div>
-      <div><span>⛱️🦩⭐🐚</span><span id="legend-beach">Παραλία</span></div>
-      <div><span>🕶️🩴💄</span><span id="legend-style">Στυλ</span></div>
-    </div>
-    <div class="name-field">
-      <label for="player-name" id="name-label">Το όνομά σου</label>
-      <input type="text" id="player-name" maxlength="20" autocomplete="off">
-    </div>
-    <div class="diff-label" id="gender-label">Ποιος παίζει;</div>
-    <div class="diff-row">
-      <button class="diff-btn gender-btn active" id="gender-female" data-gender="female">👙</button>
-      <button class="diff-btn gender-btn" id="gender-male" data-gender="male">🩳</button>
-    </div>
-    <div class="diff-label" id="diff-label">Διάλεξε ρυθμό</div>
-    <div class="diff-row">
-      <button class="diff-btn" id="diff-easy" data-diff="easy">Εύκολο</button>
-      <button class="diff-btn active" id="diff-normal" data-diff="normal">Κανονικό</button>
-      <button class="diff-btn" id="diff-hard" data-diff="hard">Δύσκολο</button>
-    </div>
-    <div class="mode-row">
-      <button class="primary" id="start-btn">Παίξε τώρα</button>
-      <button class="secondary" id="daily-btn">📅 <span id="daily-btn-label">Daily Challenge</span></button>
-      <button class="secondary" id="leaderboard-btn">🏆 <span id="leaderboard-btn-label">Κατάταξη</span></button>
-    </div>
-    <div id="daily-status"></div>
   </div>
 
   <!-- Game over screen -->
   <div id="end-screen" class="overlay hidden">
-    <div class="brand-row">
-      <a class="onecode-badge" href="https://onecode.gr" target="_blank" rel="noopener noreferrer">
-        <span class="lg-one">O</span><span class="lg-n">N</span><span class="lg-code">ECODE</span>
-      </a>
-      <div class="tagline">Καλές διακοπές</div>
+    <div class="overlay-inner">
+      <div class="brand-row">
+        <a class="onecode-badge" href="https://onecode.gr" target="_blank" rel="noopener noreferrer">
+          <span class="lg-one">O</span><span class="lg-n">N</span><span class="lg-code">ECODE</span>
+        </a>
+        <div class="tagline">Καλές διακοπές</div>
+      </div>
+      <div id="final-tag">Time's up!</div>
+      <div id="final-score">0</div>
+      <div id="rank-note"></div>
+      <p id="end-message">You packed the beach bags like a pro.</p>
+      <div id="end-daily-status"></div>
+      <div class="end-actions">
+        <button class="primary" id="retry-btn">Παίξε ξανά</button>
+        <button class="secondary" id="share-btn">📤 <span id="share-label">Μοιράσου το</span></button>
+        <button class="secondary" id="end-leaderboard-btn">🏆 <span id="end-leaderboard-label">Κατάταξη</span></button>
+        <button class="secondary" id="home-btn">🏠 <span id="home-label">Αρχική</span></button>
+      </div>
+      <div id="share-toast">Αντιγράφηκε!</div>
     </div>
-    <div id="final-tag">Time's up!</div>
-    <div id="final-score">0</div>
-    <div id="rank-note"></div>
-    <p id="end-message">You packed the beach bags like a pro.</p>
-    <div id="end-daily-status"></div>
-    <div class="end-actions">
-      <button class="primary" id="retry-btn">Παίξε ξανά</button>
-      <button class="secondary" id="share-btn">📤 <span id="share-label">Μοιράσου το</span></button>
-      <button class="secondary" id="end-leaderboard-btn">🏆 <span id="end-leaderboard-label">Κατάταξη</span></button>
-      <button class="secondary" id="home-btn">🏠 <span id="home-label">Αρχική</span></button>
-    </div>
-    <div id="share-toast">Αντιγράφηκε!</div>
   </div>
 
   <!-- Leaderboard overlay -->
   <div id="leaderboard-screen" class="overlay hidden">
-    <div class="brand-row">
-      <a class="onecode-badge" href="https://onecode.gr" target="_blank" rel="noopener noreferrer">
-        <span class="lg-one">O</span><span class="lg-n">N</span><span class="lg-code">ECODE</span>
-      </a>
+    <div class="overlay-inner">
+      <div class="brand-row">
+        <a class="onecode-badge" href="https://onecode.gr" target="_blank" rel="noopener noreferrer">
+          <span class="lg-one">O</span><span class="lg-n">N</span><span class="lg-code">ECODE</span>
+        </a>
+      </div>
+      <h1 id="lb-title">Κατάταξη</h1>
+      <div class="lb-tabs">
+        <button class="lb-tab active" id="lb-tab-daily" data-scope="daily">Σήμερα</button>
+        <button class="lb-tab" id="lb-tab-freeplay" data-scope="freeplay">Ελεύθερο</button>
+        <button class="lb-tab" id="lb-tab-alltime" data-scope="alltime">Όλων των εποχών</button>
+      </div>
+      <div class="lb-list" id="lb-list"></div>
+      <button class="primary" id="lb-close-btn">Κλείσιμο</button>
     </div>
-    <h1 id="lb-title">Κατάταξη</h1>
-    <div class="lb-tabs">
-      <button class="lb-tab active" id="lb-tab-daily" data-scope="daily">Σήμερα</button>
-      <button class="lb-tab" id="lb-tab-freeplay" data-scope="freeplay">Ελεύθερο</button>
-      <button class="lb-tab" id="lb-tab-alltime" data-scope="alltime">Όλων των εποχών</button>
-    </div>
-    <div class="lb-list" id="lb-list"></div>
-    <button class="primary" id="lb-close-btn">Κλείσιμο</button>
   </div>
 </div>
 

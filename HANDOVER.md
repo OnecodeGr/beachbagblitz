@@ -263,6 +263,21 @@ param ή header check στο Worker) είναι μικρή αλλαγή.
   loop χωρίς καθυστέρηση σε mobile δεδομένα.
 - Το παιχνίδι είναι σχεδιασμένο για κατακόρυφο (portrait) mobile — δεν έχει ειδικό χειρισμό για
   landscape ή tablet/desktop πέρα από το `max-width:520px` container.
+- **[FIXED]** Οι οθόνες (`.overlay` — start/end/leaderboard) έγιναν scrollable ώστε να χωράνε σε
+  κοντές οθόνες (δες commit "Fix start screen options being unreachable..."), αλλά το πρώτο fix
+  χρησιμοποιούσε `justify-content:center` σε flex container με `overflow-y:auto`. Real-world
+  σύμπτωμα σε κάποιες συσκευές (πιθανότατα WebKit/Safari, δεν αναπαράχθηκε σε Chromium): το
+  αρχικό scroll position ξεκινούσε ήδη κεντραρισμένο (κρύβοντας τόσο την κορυφή ΟΣΟ και ενδεχομένως
+  το κάτω μέρος του περιεχομένου) αντί να ξεκινάει από την πάνω-πάνω θέση — γνωστή cross-browser
+  ασυνέπεια στο πώς χειρίζονται οι μηχανές browser το "which end gets clipped" όταν κεντραρισμένο
+  περιεχόμενο υπερχειλίζει σε scroll container. **Fix**: αντικαταστάθηκε με το πιο robust πρότυπο
+  `margin:auto 0` σε ένα `.overlay-inner` wrapper (κάθε `.overlay` πλέον περιέχει το πραγματικό του
+  περιεχόμενο μέσα σε ένα `<div class="overlay-inner">`) — καθαρό box-model math (auto margin
+  γίνεται 0 όταν δεν υπάρχει ελεύθερος χώρος), όχι alignment-algorithm-με-overflow-ambiguity σαν το
+  `justify-content:center`, άρα δεν έχει το ίδιο πρόβλημα σε καμία μηχανή browser. Verified σε
+  Chromium (δεν υπάρχει WebKit engine διαθέσιμο σε αυτό το sandbox για άμεσο test): scrollTop=0 στο
+  load, πλήρες scroll range ακόμα προσβάσιμο, ίδιο ακριβώς οπτικό αποτέλεσμα όταν το περιεχόμενο
+  χωράει χωρίς scroll.
 - Η ζώνη ώρας του daily challenge/leaderboard είναι **hardcoded UTC+3** (Europe/Athens,
   καλοκαίρι) και στον Worker (`worker/index.js`) και στο frontend — σωστό για τη διάρκεια του
   campaign, αλλά θα χρειαστεί χειροκίνητη αλλαγή αν το campaign συνεχίσει μετά την αλλαγή ώρας.
