@@ -54,12 +54,15 @@ async function handleApi(request, env, url) {
     const mode = body.mode === 'daily' ? 'daily' : body.mode === 'endless' ? 'endless' : 'free';
     const streak = Math.max(0, Math.min(MAX_STREAK, Math.floor(Number(body.streak) || 0)));
     const scoreCeiling = mode === 'endless' ? MAX_ENDLESS_SCORE : MAX_SCORE;
+    // "Reached top speed" badge — only meaningful for endless mode, so ignore the flag entirely
+    // for any other mode even if a client sent it.
+    const sped = mode === 'endless' && body.sped === true;
 
     if (!id) return json({ error: 'invalid_id' }, 400);
     if (!name) return json({ error: 'invalid_name' }, 400);
     if (!Number.isFinite(score) || score < 0 || score > scoreCeiling) return json({ error: 'invalid_score' }, 400);
 
-    const entry = { id, name, score, streak, ts: Date.now() };
+    const entry = { id, name, score, streak, sped, ts: Date.now() };
 
     // Each player owns a distinct KV key (score:<board>:<playerId>) so concurrent submissions from
     // DIFFERENT players never race on the same key — only a single player's own double-submit could
@@ -162,6 +165,7 @@ async function listTopScores(env, prefix) {
       name: k.metadata.name,
       score: k.metadata.score,
       streak: k.metadata.streak || 0,
+      sped: k.metadata.sped || false,
       ts: k.metadata.ts || 0
     }));
   entries.sort((a, b) => b.score - a.score);
@@ -173,7 +177,7 @@ async function upsertPlayerScore(env, prefix, entry, ttlSeconds) {
   const existing = await env.LEADERBOARD.getWithMetadata(key);
   const prevScore = existing && existing.metadata ? existing.metadata.score : -1;
   if (entry.score > prevScore) {
-    const opts = { metadata: { name: entry.name, score: entry.score, streak: entry.streak, ts: entry.ts } };
+    const opts = { metadata: { name: entry.name, score: entry.score, streak: entry.streak, sped: entry.sped || false, ts: entry.ts } };
     if (ttlSeconds) opts.expirationTtl = ttlSeconds;
     await env.LEADERBOARD.put(key, '', opts);
   }

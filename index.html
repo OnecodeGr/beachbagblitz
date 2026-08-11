@@ -569,6 +569,7 @@
   .lb-rank{ font-family:'Fredoka',sans-serif; font-weight:700; color:var(--purple-soft); width:28px; }
   .lb-name{ flex:1; text-align:left; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .lb-streak{ font-size:11px; color:var(--sand); opacity:0.8; }
+  .lb-speed{ font-size:11px; opacity:0.9; }
   .lb-score{ font-family:'Fredoka',sans-serif; font-weight:700; color:var(--sand); }
   .lb-empty{
     font-size:13px; color:rgba(255,255,255,0.5);
@@ -1341,11 +1342,15 @@
     }
   }
 
+  const HARD_SPAWN_RATE_MULT = 1.10; // Hard: items drop 10% more often
+  const ENDLESS_SPAWN_RATE_MULT = 2; // Endless: items drop twice as often
+
   function scheduleSpawn(){
     if(!running) return;
     spawnItem();
-    const delay = 850 + rng()*550;
-    spawnTimer = setTimeout(scheduleSpawn, delay);
+    const baseDelay = 850 + rng()*550;
+    const rateMult = isEndlessRun ? ENDLESS_SPAWN_RATE_MULT : difficulty === 'hard' ? HARD_SPAWN_RATE_MULT : 1;
+    spawnTimer = setTimeout(scheduleSpawn, baseDelay / rateMult);
   }
 
   function spawnItem(){
@@ -1596,7 +1601,7 @@
     lbListEl.innerHTML = entries.map((e, i) => `
       <div class="lb-row${e.id === playerId ? ' lb-row-me' : ''}">
         <span class="lb-rank">#${i+1}</span>
-        <span class="lb-name">${escapeHtml(e.name)}${e.streak > 1 ? ` <span class="lb-streak">🔥${e.streak}</span>` : ''}</span>
+        <span class="lb-name">${escapeHtml(e.name)}${e.streak > 1 ? ` <span class="lb-streak">🔥${e.streak}</span>` : ''}${e.sped ? ` <span class="lb-speed" title="Reached top speed">⚡</span>` : ''}</span>
         <span class="lb-score">${e.score}</span>
       </div>
     `).join('');
@@ -1672,7 +1677,12 @@
       const res = await fetch('/api/score', {
         method: 'POST',
         headers: {'content-type':'application/json'},
-        body: JSON.stringify({ id: playerId, name: playerName, score: finalScore, mode: isDailyRun ? 'daily' : isEndlessRun ? 'endless' : 'free', streak: getStreak() })
+        body: JSON.stringify({
+          id: playerId, name: playerName, score: finalScore,
+          mode: isDailyRun ? 'daily' : isEndlessRun ? 'endless' : 'free',
+          streak: getStreak(),
+          sped: isEndlessRun && endlessCatches >= ENDLESS_SPEEDUP_STEP
+        })
       });
       if(!res.ok) return;
       const data = await res.json();
