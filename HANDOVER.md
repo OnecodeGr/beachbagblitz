@@ -167,11 +167,12 @@ sandbox, οπότε ο κώδικας είναι έτοιμος αλλά χρε�
   (π.χ. `CoralTurtle42`) που φαίνεται σαν placeholder στο input.
 - **Persistent player id**: `crypto.randomUUID()` αποθηκευμένο σε `localStorage`
   (`bbb_playerId`) — ταυτοποιεί τον παίκτη στο leaderboard χωρίς λογαριασμό/login.
-- **Leaderboard**: τρία tabs πλέον — "Σήμερα" (daily, μηδενίζεται κάθε μέρα), "Ελεύθερο" (μόνο
-  ελεύθερο παιχνίδι), και "Όλων των εποχών" (alltime, μικτό — free + daily μαζί, όπως πάντα). Top
-  10 σε KV, κρατάει το **καλύτερο σκορ ποτέ ανά παίκτη** (όχι το πιο πρόσφατο submission —
-  `upsertPlayerScore` στο `worker/index.js` κάνει compare-and-keep-max, όχι blind overwrite).
-  Δίπλα στο όνομα εμφανίζεται 🔥 badge με το streak του παίκτη (αν >1), καθαρά cosmetic.
+- **Leaderboard**: τέσσερα tabs πλέον, σε 2×2 grid — "Σήμερα" (daily, μηδενίζεται κάθε μέρα),
+  "Όλων των εποχών" (alltime, μικτό — free + daily μαζί, όπως πάντα), "Ελεύθερο" (μόνο ελεύθερο
+  παιχνίδι), και "Ατελείωτο" (μόνο endless mode, δες παρακάτω). Top 10 σε KV, κρατάει το
+  **καλύτερο σκορ ποτέ ανά παίκτη** (όχι το πιο πρόσφατο submission — `upsertPlayerScore` στο
+  `worker/index.js` κάνει compare-and-keep-max, όχι blind overwrite). Δίπλα στο όνομα εμφανίζεται
+  🔥 badge με το streak του παίκτη (αν >1), καθαρά cosmetic.
 
   **Free Play board (`score:freeplay:{playerId}`)**: προστέθηκε αργότερα, **αμιγώς additive** —
   δεν άγγιξε καθόλου τα υπάρχοντα `score:alltime:` / `score:daily:{date}:` write paths (ίδιος
@@ -184,6 +185,26 @@ sandbox, οπότε ο κώδικας είναι έτοιμος αλλά χρε�
   άδειο — δεν υπάρχει τρόπος να ανακτηθούν retroactively τα ιστορικά free-play scores που ήδη έχουν
   μπλεχτεί μέσα στο alltime board (δεν κρατούσε ποτέ tag για το ποιο mode τα δημιούργησε), γεμίζει
   μόνο από εδώ και πέρα.
+- **Ατελείωτο (Endless mode)**: τρίτο κουμπί στην αρχική οθόνη, δίπλα στο Daily Challenge. Καμία
+  χρονική διάρκεια — το γύρισμα τελειώνει **μόνο** όταν μηδενιστούν οι ζωές (`gameTick()` δεν
+  μετράει αντίστροφα σε αυτό το mode, το HUD δείχνει "∞" αντί για δευτερόλεπτα). Η δυσκολία
+  ξεκινάει ίδια με το Κανονικό (`ENDLESS_BASE_MIN/MAX`) και **δεν ακολουθεί το χρονικό ramp** των
+  προκαθορισμένων δυσκολιών — αντ' αυτού, η ταχύτητα πτώσης αυξάνεται λίγο κάθε **20 successful
+  catches** (`ENDLESS_SPEEDUP_STEP`/`ENDLESS_SPEEDUP_FACTOR = 0.97`, δηλαδή ~3% ταχύτερη πτώση ανά
+  βήμα), με hard floor (`ENDLESS_FLOOR_MIN/MAX`) ώστε να μη γίνει ποτέ unplayable/negative-duration.
+  Η επιλογή δυσκολίας (Εύκολο/Κανονικό/Δύσκολο) κλειδώνεται προσωρινά στο "Κανονικό" όσο παίζεις
+  endless — ίδιο pattern με το Daily Challenge (`preRunDifficulty`, μετονομάστηκε από
+  `preDailyDifficulty` ώστε να το μοιράζονται και τα δύο modes) — και επαναφέρεται μόλις τελειώσει
+  το γύρισμα.
+
+  **Endless board (`score:endless:{playerId}`)**: νέο, αμιγώς additive prefix, ίδιας λογικής με το
+  freeplay board παραπάνω — δεν αγγίζει daily/freeplay/alltime paths. Σκόπιμα **δεν** γράφει στο
+  `score:alltime:` board, γιατί τα endless scores δεν είναι συγκρίσιμα με τα timed (60″) modes αφού
+  δεν υπάρχει χρονικό cap — θα ήταν άδικο vs τους παίκτες που παίζουν daily/free. Έχει ξεχωριστό,
+  πολύ πιο γενναιόδωρο score ceiling στο worker (`MAX_ENDLESS_SCORE = 200000` έναντι
+  `MAX_SCORE = 5000` για τα timed modes) αφού ένα μεγάλο endless run μπορεί λογικά να ξεπεράσει το
+  παλιό cap. Verified με seed 3 "υπαρκτών" entries (daily/freeplay/alltime) πριν το deploy, μετά από
+  πλήρες endless playthrough (submit score) τα 3 αρχικά entries έμειναν byte-for-byte ίδια.
 - **Daily Challenge**: ξεχωριστό κουμπί, **best of 3 προσπάθειες/μέρα** — κρατάμε το καλύτερο σκορ
   των 3 (enforcement του attempt-count client-side μέσω `localStorage`, όχι server-side· ένας
   αποφασισμένος χρήστης θα μπορούσε να το παρακάμψει καθαρίζοντας localStorage — αποδεκτό ρίσκο

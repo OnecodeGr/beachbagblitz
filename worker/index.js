@@ -2,6 +2,7 @@ const MAX_ENTRIES = 10;
 const MAX_NAME_LEN = 20;
 const MAX_ID_LEN = 64;
 const MAX_SCORE = 5000; // generous ceiling above any realistic 60s run — blocks obviously spoofed values
+const MAX_ENDLESS_SCORE = 200000; // endless has no round time cap, so a much higher ceiling is needed
 const MAX_STREAK = 3650; // ~10 years — sanity cap, purely cosmetic so no strict anti-cheat needed
 const DAILY_TTL_SECONDS = 60 * 60 * 24 * 30; // keep past daily boards/events ~30 days, well past the campaign
 const LINK_PATTERN = /(https?:\/\/|www\.|\.[a-z]{2,6}(\/|\b))/i;
@@ -36,9 +37,9 @@ async function handleApi(request, env, url) {
 
   if (url.pathname === '/api/leaderboard' && request.method === 'GET') {
     const scopeParam = url.searchParams.get('scope');
-    const scope = scopeParam === 'daily' ? 'daily' : scopeParam === 'freeplay' ? 'freeplay' : 'alltime';
+    const scope = scopeParam === 'daily' ? 'daily' : scopeParam === 'freeplay' ? 'freeplay' : scopeParam === 'endless' ? 'endless' : 'alltime';
     const date = todayKey();
-    const prefix = scope === 'daily' ? `score:daily:${date}:` : scope === 'freeplay' ? 'score:freeplay:' : 'score:alltime:';
+    const prefix = scope === 'daily' ? `score:daily:${date}:` : scope === 'freeplay' ? 'score:freeplay:' : scope === 'endless' ? 'score:endless:' : 'score:alltime:';
     const entries = await listTopScores(env, prefix);
     return json({ scope, date: scope === 'daily' ? date : undefined, entries });
   }
@@ -50,12 +51,13 @@ async function handleApi(request, env, url) {
     const id = typeof body.id === 'string' ? body.id.trim().slice(0, MAX_ID_LEN) : '';
     const name = sanitizeName(body.name);
     const score = Math.floor(Number(body.score));
-    const mode = body.mode === 'daily' ? 'daily' : 'free';
+    const mode = body.mode === 'daily' ? 'daily' : body.mode === 'endless' ? 'endless' : 'free';
     const streak = Math.max(0, Math.min(MAX_STREAK, Math.floor(Number(body.streak) || 0)));
+    const scoreCeiling = mode === 'endless' ? MAX_ENDLESS_SCORE : MAX_SCORE;
 
     if (!id) return json({ error: 'invalid_id' }, 400);
     if (!name) return json({ error: 'invalid_name' }, 400);
-    if (!Number.isFinite(score) || score < 0 || score > MAX_SCORE) return json({ error: 'invalid_score' }, 400);
+    if (!Number.isFinite(score) || score < 0 || score > scoreCeiling) return json({ error: 'invalid_score' }, 400);
 
     const entry = { id, name, score, streak, ts: Date.now() };
 
@@ -64,19 +66,25 @@ async function handleApi(request, env, url) {
     // race, which is low-stakes. The board itself is reconstructed at read time via list()+metadata,
     // so no shared read-modify-write blob exists to be clobbered by concurrent writers.
     //
-    // score:alltime: and score:daily:{date}: are untouched below — every submission (free or daily)
-    // has always written to alltime, and only daily submissions write to the daily board, exactly as
-    // before. score:freeplay: is a brand-new, previously-nonexistent prefix written only for free-mode
-    // submissions — it cannot collide with or overwrite anything that already exists in KV.
-    const alltime = await upsertPlayerScore(env, 'score:alltime:', entry, undefined);
+    // score:alltime: and score:daily:{date}: are untouched below — every daily/free submission still
+    // writes to alltime and only daily submissions write to the daily board, exactly as before.
+    // score:freeplay: and score:endless: are separate, previously-nonexistent prefixes — they cannot
+    // collide with or overwrite anything that already exists in KV. Endless is deliberately excluded
+    // from score:alltime: since its uncapped run length makes its scores incomparable to the 60s modes.
+    let alltime = null;
     let daily = null;
     let freeplay = null;
+    let endless = null;
     if (mode === 'daily') {
+      alltime = await upsertPlayerScore(env, 'score:alltime:', entry, undefined);
       daily = await upsertPlayerScore(env, `score:daily:${todayKey()}:`, entry, DAILY_TTL_SECONDS);
+    } else if (mode === 'endless') {
+      endless = await upsertPlayerScore(env, 'score:endless:', entry, undefined);
     } else {
+      alltime = await upsertPlayerScore(env, 'score:alltime:', entry, undefined);
       freeplay = await upsertPlayerScore(env, 'score:freeplay:', entry, undefined);
     }
-    return json({ ok: true, alltime, daily, freeplay });
+    return json({ ok: true, alltime, daily, freeplay, endless });
   }
 
   if (url.pathname === '/api/event' && request.method === 'POST') {
@@ -88,7 +96,7 @@ async function handleApi(request, env, url) {
 
     const lang = body.lang === 'en' ? 'en' : 'gr';
     const difficulty = DIFFICULTIES.has(body.difficulty) ? body.difficulty : null;
-    const mode = body.mode === 'daily' ? 'daily' : 'free';
+    const mode = body.mode === 'daily' ? 'daily' : body.mode === 'endless' ? 'endless' : 'free';
     const scoreNum = Number(body.score);
     const score = Number.isFinite(scoreNum) ? Math.max(0, Math.min(MAX_SCORE, Math.floor(scoreNum))) : null;
 
@@ -179,6 +187,7 @@ function emptyStats() {
     totalScore: 0,
     shareUsed: 0,
     dailyChallengePlays: 0,
+    endlessPlays: 0,
     byLang: { gr: 0, en: 0 },
     byDifficulty: { easy: 0, normal: 0, hard: 0 }
   };
@@ -191,6 +200,7 @@ function accumulateStat(stats, m) {
     if (m.lang) stats.byLang[m.lang] = (stats.byLang[m.lang] || 0) + 1;
     if (m.difficulty) stats.byDifficulty[m.difficulty] = (stats.byDifficulty[m.difficulty] || 0) + 1;
     if (m.mode === 'daily') stats.dailyChallengePlays += 1;
+    if (m.mode === 'endless') stats.endlessPlays += 1;
   } else if (m.type === 'game_completed') {
     stats.gamesCompleted += 1;
     if (typeof m.score === 'number') stats.totalScore += m.score;

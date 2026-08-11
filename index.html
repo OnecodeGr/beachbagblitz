@@ -536,20 +536,20 @@
 
   /* leaderboard overlay */
   .lb-tabs{
-    display:flex; background:rgba(255,255,255,0.06);
-    border:1px solid rgba(255,255,255,0.15);
-    border-radius:999px; margin-bottom:18px;
-    max-width:100%; overflow-x:auto;
+    display:grid; grid-template-columns:1fr 1fr; gap:8px;
+    width:100%; max-width:320px;
+    margin-bottom:18px;
   }
   .lb-tab{
     font-family:'Fredoka',sans-serif; font-size:12px; font-weight:600;
-    border:none; background:transparent; color:rgba(255,255,255,0.55);
-    padding:9px 12px; cursor:pointer;
-    flex:none; white-space:nowrap;
+    border:2px solid rgba(255,255,255,0.15); background:rgba(255,255,255,0.06);
+    color:rgba(255,255,255,0.55);
+    border-radius:999px; padding:9px 10px; cursor:pointer;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
   }
   .lb-tab.active{
     background:linear-gradient(90deg, var(--pink), var(--purple));
-    color:white;
+    border-color:transparent; color:white;
   }
   .lb-list{
     width:100%; max-width:340px;
@@ -583,7 +583,7 @@
   <div id="miss-flash"></div>
 
   <div id="hud" class="hidden">
-    <div class="hud-pill">⏱ <span id="timer">60</span>s</div>
+    <div class="hud-pill">⏱ <span id="timer">60</span><span id="timer-unit">s</span></div>
     <div class="hud-pill">🌟 <span id="score">0</span></div>
     <div class="hud-pill" id="lives">☀️☀️☀️</div>
   </div>
@@ -660,6 +660,7 @@
       <div class="mode-row">
         <button class="primary" id="start-btn">Παίξε τώρα</button>
         <button class="secondary" id="daily-btn">📅 <span id="daily-btn-label">Daily Challenge</span></button>
+        <button class="secondary" id="endless-btn">♾️ <span id="endless-btn-label">Ατελείωτο</span></button>
         <button class="secondary" id="leaderboard-btn">🏆 <span id="leaderboard-btn-label">Κατάταξη</span></button>
       </div>
       <div id="daily-status"></div>
@@ -701,8 +702,9 @@
       <h1 id="lb-title">Κατάταξη</h1>
       <div class="lb-tabs">
         <button class="lb-tab active" id="lb-tab-daily" data-scope="daily">Σήμερα</button>
-        <button class="lb-tab" id="lb-tab-freeplay" data-scope="freeplay">Ελεύθερο</button>
         <button class="lb-tab" id="lb-tab-alltime" data-scope="alltime">Όλων των εποχών</button>
+        <button class="lb-tab" id="lb-tab-freeplay" data-scope="freeplay">Ελεύθερο</button>
+        <button class="lb-tab" id="lb-tab-endless" data-scope="endless">Ατελείωτο</button>
       </div>
       <div class="lb-list" id="lb-list"></div>
       <button class="primary" id="lb-close-btn">Κλείσιμο</button>
@@ -726,6 +728,7 @@
   const umbrellaEl = document.getElementById('umbrella');
   const comboLabel = document.getElementById('combo-label');
   const timerEl = document.getElementById('timer');
+  const timerUnitEl = document.getElementById('timer-unit');
   const scoreEl = document.getElementById('score');
   const livesEl = document.getElementById('lives');
   const missFlash = document.getElementById('miss-flash');
@@ -754,6 +757,8 @@
   const nameLabelEl = document.getElementById('name-label');
   const dailyBtn = document.getElementById('daily-btn');
   const dailyBtnLabelEl = document.getElementById('daily-btn-label');
+  const endlessBtn = document.getElementById('endless-btn');
+  const endlessBtnLabelEl = document.getElementById('endless-btn-label');
   const dailyStatusEl = document.getElementById('daily-status');
   const endDailyStatusEl = document.getElementById('end-daily-status');
   const rankNoteEl = document.getElementById('rank-note');
@@ -768,6 +773,7 @@
   const lbTabDaily = document.getElementById('lb-tab-daily');
   const lbTabFreeplay = document.getElementById('lb-tab-freeplay');
   const lbTabAlltime = document.getElementById('lb-tab-alltime');
+  const lbTabEndless = document.getElementById('lb-tab-endless');
   const lbListEl = document.getElementById('lb-list');
   const lbCloseBtn = document.getElementById('lb-close-btn');
 
@@ -793,12 +799,14 @@
       dailyReady: n => `Ίδια πρόκληση για όλους σήμερα — κρατάμε το καλύτερο σκορ από 3 προσπάθειες. Απομένουν ${n}.`,
       dailyDone: ms => `Ξαναέλα σε ${formatCountdown(ms)} για τη νέα πρόκληση.`,
       streak: n => `🔥 Σερί ${n} ${n === 1 ? 'μέρα' : 'μέρες'}`,
+      endlessBtn: 'Ατελείωτο',
       leaderboardBtn: 'Κατάταξη', homeBtn: 'Αρχική',
-      lbTitle: 'Κατάταξη', lbToday: 'Σήμερα', lbFreeplay: 'Ελεύθερο', lbAllTime: 'Όλων των εποχών', lbClose: 'Κλείσιμο',
+      lbTitle: 'Κατάταξη', lbToday: 'Σήμερα', lbFreeplay: 'Ελεύθερο', lbAllTime: 'Όλων των εποχών', lbEndless: 'Ατελείωτο', lbClose: 'Κλείσιμο',
       lbEmpty: 'Κανένα σκορ ακόμα — γίνε ο πρώτος!', lbLoading: 'Φόρτωση…',
       lbError: 'Η κατάταξη δεν είναι διαθέσιμη αυτή τη στιγμή.',
       rankTopDaily: 'Μπήκες στο σημερινό Top 10! 🏆', rankTopAlltime: 'Μπήκες στο Top 10 όλων των εποχών! 🏆',
       rankTopFreeplay: 'Μπήκες στο Top 10 ελεύθερου παιχνιδιού! 🏆',
+      rankTopEndless: 'Μπήκες στο Top 10 ατελείωτου παιχνιδιού! 🏆',
       twistLabel: 'Σημερινή Ανατροπή'
     },
     en: {
@@ -822,12 +830,14 @@
       dailyReady: n => `Same challenge for everyone today — we keep your best of 3 attempts. ${n} left.`,
       dailyDone: ms => `Come back in ${formatCountdown(ms)} for the next challenge.`,
       streak: n => `🔥 ${n} day streak`,
+      endlessBtn: 'Endless',
       leaderboardBtn: 'Leaderboard', homeBtn: 'Home',
-      lbTitle: 'Leaderboard', lbToday: 'Today', lbFreeplay: 'Free Play', lbAllTime: 'All-time', lbClose: 'Close',
+      lbTitle: 'Leaderboard', lbToday: 'Today', lbFreeplay: 'Free Play', lbAllTime: 'All-time', lbEndless: 'Endless', lbClose: 'Close',
       lbEmpty: 'No scores yet — be the first!', lbLoading: 'Loading…',
       lbError: 'Leaderboard is unavailable right now.',
       rankTopDaily: "You made today's Top 10! 🏆", rankTopAlltime: 'You made the all-time Top 10! 🏆',
       rankTopFreeplay: 'You made the Free Play Top 10! 🏆',
+      rankTopEndless: 'You made the Endless Top 10! 🏆',
       twistLabel: "Today's Twist"
     }
   };
@@ -860,6 +870,7 @@
     shareLabel.textContent = t.shareLabel;
     nameLabelEl.textContent = nameLabelEl.classList.contains('name-error') ? t.invalidName : t.nameLabel;
     dailyBtnLabelEl.textContent = t.dailyBtn;
+    endlessBtnLabelEl.textContent = t.endlessBtn;
     leaderboardBtnLabelEl.textContent = t.leaderboardBtn;
     endLeaderboardLabelEl.textContent = t.leaderboardBtn;
     homeLabelEl.textContent = t.homeBtn;
@@ -867,6 +878,7 @@
     lbTabDaily.textContent = t.lbToday;
     lbTabFreeplay.textContent = t.lbFreeplay;
     lbTabAlltime.textContent = t.lbAllTime;
+    lbTabEndless.textContent = t.lbEndless;
     lbCloseBtn.textContent = t.lbClose;
     langButtons.forEach(b => b.classList.toggle('active', b.dataset.lang === lang));
     renderDailyStatus();
@@ -885,8 +897,13 @@
     hard:   { minStart:5.5, maxStart:8.5,  minFloor:2.8, maxFloor:4.2, rampMin:0.045, rampMax:0.060, scoreMult:1.3 }
   };
   let difficulty = 'normal';
-  let preDailyDifficulty = null;
+  let preRunDifficulty = null;
   let gender = 'female';
+
+  const ENDLESS_BASE_MIN = 6.5, ENDLESS_BASE_MAX = 9.5; // same starting pace as Normal
+  const ENDLESS_SPEEDUP_STEP = 20; // items caught between each speed nudge
+  const ENDLESS_SPEEDUP_FACTOR = 0.97; // ~3% faster fall each step — "a very little"
+  const ENDLESS_FLOOR_MIN = 1.4, ENDLESS_FLOOR_MAX = 2.0; // hard floor so it never breaks
 
   genderButtons.forEach(btn=>{
     btn.addEventListener('click', ()=>{
@@ -1050,6 +1067,8 @@
 
   let rng = Math.random;
   let isDailyRun = false;
+  let isEndlessRun = false;
+  let endlessCatches = 0;
   let activeTwist = null;
   let activeItemPool = null; // set once ITEMS exists, below
 
@@ -1158,12 +1177,18 @@
   function resetGame(){
     score = 0; lives = 3; combo = 0; timeLeft = 60;
     frozenUntil = 0;
-    const d = DIFFICULTIES[difficulty];
-    fallSpeedMin = d.minStart; fallSpeedMax = d.maxStart;
+    endlessCatches = 0;
+    if(isEndlessRun){
+      fallSpeedMin = ENDLESS_BASE_MIN; fallSpeedMax = ENDLESS_BASE_MAX;
+    } else {
+      const d = DIFFICULTIES[difficulty];
+      fallSpeedMin = d.minStart; fallSpeedMax = d.maxStart;
+    }
     activeItems.forEach(it => it.el.remove());
     activeItems = [];
     scoreEl.textContent = '0';
-    timerEl.textContent = '60';
+    timerEl.textContent = isEndlessRun ? '∞' : '60';
+    timerUnitEl.classList.toggle('hidden', isEndlessRun);
     updateLives();
     updateCombo();
   }
@@ -1288,6 +1313,11 @@
   }
 
   function gameTick(){
+    if(isEndlessRun){
+      // Endless has no round timer — fall speed ramps by catches instead, see handleCatch().
+      if(lives <= 0) endGame(TEXT[lang].outOfSun);
+      return;
+    }
     timeLeft -= 1;
     timerEl.textContent = timeLeft;
     // ramp difficulty toward this preset's floor
@@ -1462,6 +1492,13 @@
     vibrate(10);
     celebrateCatch(obj, mult);
     popItem(obj, true);
+    if(isEndlessRun){
+      endlessCatches += 1;
+      if(endlessCatches % ENDLESS_SPEEDUP_STEP === 0){
+        fallSpeedMin = Math.max(ENDLESS_FLOOR_MIN, fallSpeedMin * ENDLESS_SPEEDUP_FACTOR);
+        fallSpeedMax = Math.max(ENDLESS_FLOOR_MAX, fallSpeedMax * ENDLESS_SPEEDUP_FACTOR);
+      }
+    }
   }
 
   function handleMiss(obj){
@@ -1572,6 +1609,7 @@
     lbTabDaily.classList.toggle('active', scope === 'daily');
     lbTabFreeplay.classList.toggle('active', scope === 'freeplay');
     lbTabAlltime.classList.toggle('active', scope === 'alltime');
+    lbTabEndless.classList.toggle('active', scope === 'endless');
     // This same function also runs on tab switches (Today/Free Play/All-time) while the leaderboard
     // is already open — only capture/hide the return screen on a genuine open, otherwise the tab
     // switch sees start/end screen already hidden and clobbers lbReturnScreen with null.
@@ -1596,11 +1634,12 @@
   }
 
   leaderboardBtn.addEventListener('click', ()=> openLeaderboard('daily'));
-  endLeaderboardBtn.addEventListener('click', ()=> openLeaderboard(isDailyRun ? 'daily' : 'alltime'));
+  endLeaderboardBtn.addEventListener('click', ()=> openLeaderboard(isDailyRun ? 'daily' : isEndlessRun ? 'endless' : 'alltime'));
   lbCloseBtn.addEventListener('click', closeLeaderboard);
   lbTabDaily.addEventListener('click', ()=> openLeaderboard('daily'));
   lbTabFreeplay.addEventListener('click', ()=> openLeaderboard('freeplay'));
   lbTabAlltime.addEventListener('click', ()=> openLeaderboard('alltime'));
+  lbTabEndless.addEventListener('click', ()=> openLeaderboard('endless'));
 
   // --- basic, cookieless event tracking (own Worker/KV — Cloudflare Web Analytics has no custom-event support) ---
   function trackEvent(type, extra){
@@ -1622,16 +1661,18 @@
       const res = await fetch('/api/score', {
         method: 'POST',
         headers: {'content-type':'application/json'},
-        body: JSON.stringify({ id: playerId, name: playerName, score: finalScore, mode: isDailyRun ? 'daily' : 'free', streak: getStreak() })
+        body: JSON.stringify({ id: playerId, name: playerName, score: finalScore, mode: isDailyRun ? 'daily' : isEndlessRun ? 'endless' : 'free', streak: getStreak() })
       });
       if(!res.ok) return;
       const data = await res.json();
       const t = TEXT[lang];
       const madeDaily = isDailyRun && data.daily && data.daily.some(e => e.id === playerId);
-      const madeFreeplay = !isDailyRun && data.freeplay && data.freeplay.some(e => e.id === playerId);
+      const madeFreeplay = !isDailyRun && !isEndlessRun && data.freeplay && data.freeplay.some(e => e.id === playerId);
+      const madeEndless = isEndlessRun && data.endless && data.endless.some(e => e.id === playerId);
       const madeAlltime = data.alltime && data.alltime.some(e => e.id === playerId);
       if(madeDaily) rankNoteEl.textContent = t.rankTopDaily;
       else if(madeFreeplay) rankNoteEl.textContent = t.rankTopFreeplay;
+      else if(madeEndless) rankNoteEl.textContent = t.rankTopEndless;
       else if(madeAlltime) rankNoteEl.textContent = t.rankTopAlltime;
     } catch(err){
       // offline or not deployed yet — local play still works fine
@@ -1665,16 +1706,17 @@
     trackEvent('game_completed', { score });
     renderDailyStatus();
 
-    if(isDailyRun && preDailyDifficulty){
-      difficulty = preDailyDifficulty;
+    if((isDailyRun || isEndlessRun) && preRunDifficulty){
+      difficulty = preRunDifficulty;
       diffButtons.forEach(b => b.classList.toggle('active', b.dataset.diff === difficulty));
-      preDailyDifficulty = null;
+      preRunDifficulty = null;
     }
   }
 
   function beginFreePlay(){
     if(!commitPlayerName()) return;
     isDailyRun = false;
+    isEndlessRun = false;
     rng = Math.random;
     activeTwist = null;
     activeItemPool = ITEMS;
@@ -1687,6 +1729,7 @@
     if(!hasDailyAttemptsLeft()) return;
     if(!commitPlayerName()) return;
     isDailyRun = true;
+    isEndlessRun = false;
     rng = mulberry32(hashSeed('bbb-daily-' + todayKey()));
     activeTwist = pickDailyTwist();
     activeItemPool = activeTwist.id === 'lucky-charm'
@@ -1694,7 +1737,7 @@
       : ITEMS;
     if(activeTwist.id === 'bag-shuffle') applyBagOrder(activeTwist.bagOrder);
     else restoreBagOrder();
-    preDailyDifficulty = difficulty;
+    preRunDifficulty = difficulty;
     difficulty = 'normal';
     diffButtons.forEach(b => b.classList.toggle('active', b.dataset.diff === 'normal'));
     recordDailyAttempt();
@@ -1703,10 +1746,27 @@
     trackEvent('game_started', { difficulty: 'normal', mode: 'daily' });
   }
 
+  function beginEndless(){
+    if(!commitPlayerName()) return;
+    isDailyRun = false;
+    isEndlessRun = true;
+    rng = Math.random;
+    activeTwist = null;
+    activeItemPool = ITEMS;
+    restoreBagOrder();
+    preRunDifficulty = difficulty;
+    difficulty = 'normal';
+    diffButtons.forEach(b => b.classList.toggle('active', b.dataset.diff === 'normal'));
+    startGame();
+    trackEvent('game_started', { difficulty: 'normal', mode: 'endless' });
+  }
+
   startBtn.addEventListener('click', beginFreePlay);
   dailyBtn.addEventListener('click', beginDailyChallenge);
+  endlessBtn.addEventListener('click', beginEndless);
   retryBtn.addEventListener('click', ()=>{
     if(isDailyRun && hasDailyAttemptsLeft()) beginDailyChallenge();
+    else if(isEndlessRun) beginEndless();
     else beginFreePlay();
   });
   homeBtn.addEventListener('click', ()=>{
