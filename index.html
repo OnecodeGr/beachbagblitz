@@ -1343,7 +1343,7 @@
   }
 
   const HARD_SPAWN_RATE_MULT = 1.10; // Hard: items drop 10% more often
-  const ENDLESS_SPAWN_RATE_MULT = 2; // Endless: items drop twice as often
+  const ENDLESS_SPAWN_RATE_MULT = 1.5; // Endless: items drop 1.5x as often as the base rate
 
   function scheduleSpawn(){
     if(!running) return;
